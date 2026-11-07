@@ -1,7 +1,22 @@
-# Space Fighter — Godot 4.7.2 / v1.3.0
+# Space Fighter — Godot 4.7.2 / v1.3.1
 
 Migration of the retired Unity port, using `reference/web/www` (the original
 540x960 Canvas game) as the gameplay and numeric source of truth.
+
+## v1.3.1 GS review performance pass
+
+Claude-Code-Game-Studios review (`gs-code-review`) over the whole project.
+Findings fixed in this patch:
+
+- **Per-frame hex colour parsing removed**: enemy base/accent colours and the
+  player weapon tint are cached instead of `Color.html()` every frame
+  (up to 84 parses/frame at 42 enemies).
+- **Enemy muzzle colour cached** on `Enemy.setup()` instead of re-parsing the
+  glow string on every shot.
+- **FX particle ceiling**: 420 particles / 40 floating texts, oldest dropped
+  first, so stacked novas/explosions cannot grow draw cost unbounded.
+- Remaining suggestions are architectural (split `main.gd` 1.6k-line god object
+  into wave/collision/upgrade modules) and tracked as follow-up, not blocking.
 
 ## v1.3.0 boss roster, per-zone BGM and longer zones
 
@@ -133,11 +148,11 @@ graze had no mechanical payoff, and there was no inter-zone build agency.
 - [x] **App icon (v1.1.0)**: cel-shaded 3/4 hero on a pastel nebula
       (`assets/icons/`), wired into the project icon, Windows exe icon and
       Android adaptive launcher icon.
-- [x] Windows release export: `build/windows/SpaceFighter.exe` (v1.3.0.0)
-- [x] Android APK: `SpaceFighter-Godot-v1.3.0.apk` (34 MB, portrait, target SDK
+- [x] Windows release export: `build/windows/SpaceFighter.exe` (v1.3.1.0)
+- [x] Android APK: `SpaceFighter-Godot-v1.3.1.apk` (portrait, target SDK
       36, release-signed with the project keystore)
 - [x] On-device install verified: Android 36 emulator with hardware GPU
-      (1080x1920 and 1080x2400), versionName 1.3.0 / code 14, no black bars,
+      (1080x1920 and 1080x2400), versionName 1.3.1 / code 15, no black bars,
       touch controls work, 0 Godot script/shader errors
 - [x] Release signing: project keystore (CN=Space Fighter, O=sctale), v2/v3 verified
       (`apksigner verify --verbose`)

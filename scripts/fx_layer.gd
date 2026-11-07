@@ -4,6 +4,9 @@ extends Node2D
 ## 轻量粒子/拖尾层：火花、碎片、冲击环、拾取文字。全部用 draw 原语，
 ## 不建节点、不依赖纹理，弹幕多时也不会掉帧。加法混合让亮色更像动画特效。
 
+const MAX_PARTS := 420
+const MAX_TEXTS := 40
+
 var font: Font
 var parts: Array = []
 var texts: Array = []
@@ -17,6 +20,19 @@ func _ready() -> void:
 	var mat := CanvasItemMaterial.new()
 	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	material = mat
+
+
+## 粒子数量上限：星爆/连爆叠在一起时丢弃最旧的，避免单帧绘制量失控。
+func _push(p: Dictionary) -> void:
+	if parts.size() >= MAX_PARTS:
+		parts.pop_front()
+	parts.append(p)
+
+
+func _push_text(tx: Dictionary) -> void:
+	if texts.size() >= MAX_TEXTS:
+		texts.pop_front()
+	texts.append(tx)
 
 
 func _process(delta: float) -> void:
@@ -85,7 +101,7 @@ func explode(pos: Vector2, color: Color, size: float, heavy := false) -> void:
 	for i in range(n):
 		var a := _rng.randf() * TAU
 		var sp := _rng.randf_range(90.0, 260.0) * (1.3 if heavy else 1.0)
-		parts.append({
+		_push({
 			"kind": "shard" if i % 3 != 0 else "spark", "pos": pos,
 			"vel": Vector2(cos(a), sin(a)) * sp,
 			"life": _rng.randf_range(0.35, 0.70), "max_life": 0.70,
@@ -93,29 +109,29 @@ func explode(pos: Vector2, color: Color, size: float, heavy := false) -> void:
 			"color": color if i % 4 != 0 else Color(1, 1, 1, 0.9),
 			"rot": a, "spin": _rng.randf_range(-9.0, 9.0), "w": 2.5 if i % 3 == 0 else 1.0,
 		})
-	parts.append({"kind": "ring", "pos": pos, "vel": Vector2.ZERO, "radius": size * 0.35,
+	_push({"kind": "ring", "pos": pos, "vel": Vector2.ZERO, "radius": size * 0.35,
 		"grow": size * 2.4, "life": 0.38, "max_life": 0.38, "color": color, "w": 3.5 if heavy else 2.5})
-	parts.append({"kind": "flash", "pos": pos, "vel": Vector2.ZERO, "radius": size * 0.9,
+	_push({"kind": "flash", "pos": pos, "vel": Vector2.ZERO, "radius": size * 0.9,
 		"life": 0.14, "max_life": 0.14, "color": Color(1, 1, 1, 0.85)})
 
 
 func hit(pos: Vector2, color: Color) -> void:
-	parts.append({"kind": "flash", "pos": pos, "vel": Vector2.ZERO, "radius": 10.0,
+	_push({"kind": "flash", "pos": pos, "vel": Vector2.ZERO, "radius": 10.0,
 		"life": 0.10, "max_life": 0.10, "color": Color(1, 1, 1, 0.75)})
 	for i in range(4):
 		var a := _rng.randf() * TAU
-		parts.append({"kind": "spark", "pos": pos,
+		_push({"kind": "spark", "pos": pos,
 			"vel": Vector2(cos(a), sin(a)) * _rng.randf_range(120.0, 300.0),
 			"life": _rng.randf_range(0.12, 0.24), "max_life": 0.24,
 			"color": color, "w": 1.8})
 
 
 func pickup(pos: Vector2, color: Color, label: String) -> void:
-	parts.append({"kind": "ring", "pos": pos, "vel": Vector2.ZERO, "radius": 6.0,
+	_push({"kind": "ring", "pos": pos, "vel": Vector2.ZERO, "radius": 6.0,
 		"grow": 90.0, "life": 0.34, "max_life": 0.34, "color": color, "w": 2.0})
 	for i in range(8):
 		var a := _rng.randf() * TAU
-		parts.append({"kind": "spark", "pos": pos,
+		_push({"kind": "spark", "pos": pos,
 			"vel": Vector2(cos(a), sin(a)) * _rng.randf_range(80.0, 210.0),
 			"life": 0.36, "max_life": 0.36, "color": color, "w": 2.0})
 	if label != "":
@@ -124,14 +140,14 @@ func pickup(pos: Vector2, color: Color, label: String) -> void:
 
 func nova(pos: Vector2) -> void:
 	for i in range(3):
-		parts.append({"kind": "ring", "pos": pos, "vel": Vector2.ZERO, "radius": 40.0 + i * 24.0,
+		_push({"kind": "ring", "pos": pos, "vel": Vector2.ZERO, "radius": 40.0 + i * 24.0,
 			"grow": 520.0, "life": 0.55 + i * 0.12, "max_life": 0.55 + i * 0.12,
 			"color": Color(1.0, 0.92, 0.55, 0.9), "w": 4.0 - i})
-	parts.append({"kind": "flash", "pos": pos, "vel": Vector2.ZERO, "radius": 120.0,
+	_push({"kind": "flash", "pos": pos, "vel": Vector2.ZERO, "radius": 120.0,
 		"life": 0.20, "max_life": 0.20, "color": Color(1, 1, 1, 0.6)})
 	for i in range(24):
 		var a := _rng.randf() * TAU
-		parts.append({"kind": "spark", "pos": pos,
+		_push({"kind": "spark", "pos": pos,
 			"vel": Vector2(cos(a), sin(a)) * _rng.randf_range(260.0, 640.0),
 			"life": _rng.randf_range(0.3, 0.6), "max_life": 0.6,
 			"color": Color(1.0, 0.85, 0.45), "w": 3.0})
@@ -139,12 +155,12 @@ func nova(pos: Vector2) -> void:
 
 func dash(pos: Vector2, dir: Vector2, color: Color) -> void:
 	for i in range(5):
-		parts.append({"kind": "shard", "pos": pos - dir * (i * 12.0),
+		_push({"kind": "shard", "pos": pos - dir * (i * 12.0),
 			"vel": -dir * 80.0, "life": 0.22 + i * 0.03, "max_life": 0.35,
 			"size": 16.0 - i * 2.0, "color": color, "rot": dir.angle() + PI * 0.5,
 			"spin": 0.0})
 
 
 func float_text(pos: Vector2, label: String, color: Color, size := 16) -> void:
-	texts.append({"pos": pos, "life": 0.85, "max_life": 0.85, "text": label,
+	_push_text({"pos": pos, "life": 0.85, "max_life": 0.85, "text": label,
 		"color": color, "size": size})

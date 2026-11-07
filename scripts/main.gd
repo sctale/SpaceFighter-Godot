@@ -122,6 +122,8 @@ var zone_time := 0.0
 var total_kills := 0
 var _tex_cache: Dictionary = {}
 var _keyart_cache: Dictionary = {}
+# 热路径用：避免每帧把 "#ff6f91" 这种字符串重新解析成 Color
+var _color_cache: Dictionary = {}
 
 # 自适应视口与安全区（长屏/平板/刘海屏）
 var view_size := Vector2(CFG.WIDTH, CFG.HEIGHT)
@@ -1198,7 +1200,7 @@ func _kill_enemy(index: int, diff: Dictionary) -> void:
 	if e.elite:
 		sfx.play_boom()
 	if fx != null:
-		var col := Color.html(String(e.def.get("color", "#ff6f91")))
+		var col := _html_color(String(e.def.get("color", "#ff6f91")))
 		fx.explode(at, col, e.size, e.elite)
 		fx.float_text(at + Vector2(0, -e.size * 0.7), "+%d" % int(e.score_value),
 			Color(1.0, 0.94, 0.72), 14)
@@ -1476,6 +1478,14 @@ func _reset_game() -> void:
 		music.set_paused(false)
 
 
+func _html_color(spec: String) -> Color:
+	if _color_cache.has(spec):
+		return _color_cache[spec]
+	var c := Color.html(spec)
+	_color_cache[spec] = c
+	return c
+
+
 func _ship_tex(name: String) -> Texture2D:
 	if _tex_cache.has(name):
 		return _tex_cache[name]
@@ -1657,7 +1667,7 @@ func _draw_bullets() -> void:
 func _draw_player() -> void:
 	var blink := player_invuln > 0.0 and int(player_invuln * 18.0) % 2 == 0
 	var alpha := 0.35 if blink else 1.0
-	var tint := Color.html(String(CFG.WEAPON_LINES[String(weapons.active_id)]["tint"]))
+	var tint := _html_color(String(CFG.WEAPON_LINES[String(weapons.active_id)]["tint"]))
 	_draw_shadow(player_pos + Vector2(0, 15), PLAYER_ART_RADIUS * 0.92,
 		Color(0.10, 0.06, 0.16, 0.24 * alpha))
 	_blob(player_pos, PLAYER_ART_RADIUS * 1.65, Color(1.0, 0.96, 0.86, 0.26 * alpha), 9)
@@ -1717,8 +1727,8 @@ func _draw_player_fallback(alpha: float) -> void:
 
 func _draw_enemies() -> void:
 	for e: Enemy in enemies:
-		var base := Color.html(String(e.def.get("color", "#ff6f91")))
-		var accent := Color.html(String(e.def.get("accent", "#ffffff")))
+		var base := _html_color(String(e.def.get("color", "#ff6f91")))
+		var accent := _html_color(String(e.def.get("accent", "#ffffff")))
 		var ang := e.turn + e.spin
 		var vis := e.size * 1.06
 		_draw_shadow(e.pos + Vector2(0, e.size * 0.42), e.size * 0.92,

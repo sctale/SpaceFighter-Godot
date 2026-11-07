@@ -10,3 +10,22 @@ keystore/
 reference/artgen/fontwork/*.ttc
 reference/artgen/**/*.png
 reference/docs/shots/
+
+# 本地工具/流程脚手架：GS（Claude-Code-Game-Studios）与 Trae 缓存，不入库
+.trae/
+.claude/
+CLAUDE.md
+AGENTS.md
+LICENSE
+project.yaml
+design/
+production/
+src/
+docs/CLAUDE.md
+docs/COLLABORATIVE-DESIGN-PRINCIPLE.md
+docs/WORKFLOW-GUIDE.md
+docs/architecture/
+docs/engine-reference/
+docs/migration-guide-v1.1.md
+docs/registry/
+docs/skill-flow-diagrams.md

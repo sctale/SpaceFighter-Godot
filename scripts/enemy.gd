@@ -38,6 +38,7 @@ var damage_taken_mul := 1.0
 var fire_mul := 1.0
 var score_value := 0
 var drop_chance := 0.0
+var glow_color := Color.WHITE   # 热路径缓存，避免每次开火重新解析十六进制色
 var volatile_fuse := -1.0 # 挥发机被击落后倒计时分裂
 
 # 回调：func(pos:Vector2, vel:Vector2, color:Color, radius:float, kind:String, life:float)
@@ -93,6 +94,7 @@ func setup(p_kind: String, p_def: Dictionary, p_pos: Vector2, p_zone: int,
 		sc *= 1.18
 	score_value = int(roundf(sc))
 	drop_chance = float(def.get("drop", 0.0))
+	glow_color = Color.html(String(def.get("glow", "#ff6f91")))
 
 	# 开火节奏词缀：急速更勤 ×0.72，装甲更慢 ×1.12，精英 ×0.82
 	fire_mul = 1.0
@@ -235,7 +237,7 @@ func _do_fire(diff: Dictionary) -> void:
 	var from := pos + Vector2(0, size * 0.4)
 	var target: Vector2 = player_pos_fn.call()
 	var aim := (target - pos).angle()
-	var tint := Color.html(String(def.get("glow", "#ff6f91")))
+	var tint := glow_color
 
 	# 内部 helpers：按角度/速度生成一颗敌弹
 	var add := func(deg: float, speed: float, bkind: String, r: float) -> void:

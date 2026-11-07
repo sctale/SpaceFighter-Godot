@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.1 — 2026-11-07
+
+**perf / GS review pass**
+
+- 用 Claude-Code-Game-Studios（GS）套件完成脚手架安装、引擎配置与全项目
+  代码评审。
+- 热路径优化：敌机 base/accent 颜色与玩家武器色改为缓存，移除每帧最多 84 次
+  `Color.html()` 字符串解析。
+- 敌机开火色在 `setup()` 时缓存，不再每次射击重新解析。
+- 特效层加上限：420 个粒子 / 40 条浮字，超出丢弃最旧项，避免连续星爆/爆炸
+  让单帧绘制量无上限增长。
+- 数值 gate `checks=85`；headless selftest `n=5` 保持通过。
+- Android versionName `1.3.1` / code `15`；Windows FileVersion `1.3.1.0`。
+
 ## 1.3.0 — 2026-11-07
 
 **feat / boss roster, per-zone music, longer zones**
