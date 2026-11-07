@@ -13,6 +13,9 @@ import importlib.util
 import os
 import sys
 
+# 不往 reference/ 写 __pycache__，保持归档目录只读
+sys.dont_write_bytecode = True
+
 import bpy
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
