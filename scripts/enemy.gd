@@ -60,7 +60,7 @@ func setup(p_kind: String, p_def: Dictionary, p_pos: Vector2, p_zone: int,
 	affix = p_affix
 	phase = randf() * TAU
 	dir_sign = 1.0 if randf() < 0.5 else -1.0
-	station_y = CFG.HEIGHT * float(def.get("targetY", 0.25))
+	station_y = CFG.VIEW.y * float(def.get("targetY", 0.25))
 	summon_t = CFG.CARRIER_SUMMON_EVERY
 
 	# 尺寸：精英 ×1.22，装甲 ×1.06，急速 ×0.92
@@ -185,26 +185,26 @@ func _move(dt: float) -> void:
 				turn = deg_to_rad(90.0) * dir_sign
 
 	# 出屏回收（含横向，原版 entities.js:1382）
-	if pos.y > CFG.HEIGHT + 70.0 or pos.x < -135.0 or pos.x > CFG.WIDTH + 135.0:
+	if pos.y > CFG.VIEW.y + 70.0 or pos.x < -135.0 or pos.x > CFG.VIEW.x + 135.0:
 		dead = true
 
 
 func _fire(dt: float, diff: Dictionary) -> void:
 	var fire_mode = def.get("fire", null)
 	# 母舰召唤（上半屏 45% 带内）
-	if kind == "carrier" and not leaving and pos.y < CFG.HEIGHT * CFG.CARRIER_BAND_TOP_FRAC and pos.y > 20.0:
+	if kind == "carrier" and not leaving and pos.y < CFG.VIEW.y * CFG.CARRIER_BAND_TOP_FRAC and pos.y > 20.0:
 		summon_t -= dt
 		if summon_t <= 0.0:
 			summon_t = CFG.CARRIER_SUMMON_EVERY
 			if spawn_child.is_valid():
 				var shard := randf() < CFG.CARRIER_SHARDLING_CHANCE
-				var px := clampf(pos.x + randf_range(-size, size), 30.0, CFG.WIDTH - 30.0)
+				var px := clampf(pos.x + randf_range(-size, size), 30.0, CFG.VIEW.x - 30.0)
 				spawn_child.call("shardling" if shard else "wasp", Vector2(px, pos.y + size * 0.6))
 
 	if fire_mode == null or leaving:
 		return
 	# 开火带：y∈(20, H×0.8)
-	if pos.y < 20.0 or pos.y > CFG.HEIGHT * 0.8:
+	if pos.y < 20.0 or pos.y > CFG.VIEW.y * 0.8:
 		return
 	if not player_pos_fn.is_valid():
 		return

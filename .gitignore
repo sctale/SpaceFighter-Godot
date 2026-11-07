@@ -3,6 +3,8 @@ build/
 *.apk
 *.aab
 *.tmp
+__pycache__/
+*.pyc
 
 keystore/
 reference/artgen/fontwork/*.ttc

@@ -33,5 +33,5 @@ func tick(dt: float, player_pos: Vector2) -> void:
 		var pull := (1.0 - d / 120.0) * 520.0
 		vel = vel.lerp(to_player.normalized() * pull, 1.0 - exp(-6.0 * dt))
 	pos += vel * dt
-	if life <= 0.0 or pos.y > CFG.HEIGHT + 40.0:
+	if life <= 0.0 or pos.y > CFG.VIEW.y + 40.0:
 		dead = true

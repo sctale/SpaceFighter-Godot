@@ -1,32 +1,63 @@
-# Space Fighter — Godot 4.7.2 migration
+# Space Fighter — Godot 4.7.2 / v1.1.0
 
 Migration of the retired Unity port, using `reference/web/www` (the original
 540x960 Canvas game) as the gameplay and numeric source of truth.
 
+## v1.1.0 visual reset
+
+- **Anime cel-shaded art**: all player/enemy/boss/drone/crate sprites re-rendered
+  in Blender with two-tone shading, dark plum outlines, hand-painted highlights
+  and supersampled anti-aliasing (`tools/artgen_anime.py`).
+- **Key visual**: a 3/4 cel-shaded hero ship (`assets/keyart/hero.png`) and a
+  3D beveled title logo (`assets/keyart/logo.png`) rendered for the menu.
+- **Adaptive full-screen layout**: `stretch/aspect="expand"`, dynamic
+  `CFG.VIEW`, safe-area insets (notch/navigation bar) and HUD/controls anchored
+  to the real viewport. Verified at 540x960, 540x1061 (long phone), 720x960
+  (tablet) and on an Android emulator at 1080x1920 / 1080x2400 with hardware
+  GPU passthrough.
+- **New UI**: cream sticker panels, ink outlines, candy-colored chips/buttons,
+  live boss bar, pause and results cards, floating combo text, redesigned touch
+  controls.
+- **New background**: animated FBM nebula shader, three parallax star layers,
+  cel-shaded planet/moon, gameplay-only bottom dimming for bullet readability.
+- **New FX**: explosions, shards, shockwave rings, hit sparks, pickup text,
+  screen shake, engine flames, dash afterimages and bullet-type silhouettes.
+- **New app icon** generated from the 3/4 hero render.
+
+![menu](docs/shots/ui_v110_menu.png)
+![action](docs/shots/ui_v110_action.png)
+![boss](docs/shots/ui_v110_boss.png)
+![long phone](docs/shots/android_v110_tall_play.png)
+![tablet](docs/shots/ui_v110_tablet.png)
+
 ## Status
 
 - [x] Godot **4.7.2 stable** installed, export templates installed
-- [x] Project skeleton at 540x960, portrait, `canvas_items` stretch
+- [x] Project skeleton at 540x960 design size, portrait, `canvas_items`
+      `expand` stretch + dynamic `CFG.VIEW` + safe-area insets
 - [x] Playable core: keyboard + mouse/touch drag, pulse auto-fire, four enemy
       archetypes, aimed/fan/ring fire, swept collision, graze, score/lives,
       pause/restart, difficulty keys 1/2/3
-- [x] Numeric gate `tools/verify_numbers.gd` (**66 checks**, includes behaviour assertions)
-- [x] **Blender sprite art ported (v0.1.1)**: player + 12 enemy hulls + hit-flash
-      masks, extracted from `_archive/space-fighter-unity-v0.21.14-src.tar.gz`
-      into `assets/ships/` (94 PNGs). Drawn via the Unity `ShipArt` contract
-      (visual outer edge = hit radius, canvas side = radius / 0.46); polygon
-      fallback kept if a texture is missing.
-- [x] **App icon (v0.1.1)**: 3/4 hero interceptor (`assets/icons/`), wired into
-      the project icon, Windows exe icon and Android adaptive launcher icon.
-- [x] Windows debug export: `build/windows/SpaceFighter.exe`
-- [x] Android APK: `SpaceFighter-Godot-v1.0.1.apk` (38 MB, target SDK 36,
-      portrait, release-signed with the project keystore)
-- [x] On-device install verified: emulator 1080x1920, v1.0.1 / code 9, sprites
-      render, touch controls work, 0 script errors (`docs/shots/godot_v1_play.png`)
+- [x] Numeric gate `tools/verify_numbers.gd` (**76 checks**, includes behaviour assertions)
+- [x] **Cel-shaded sprite art (v1.1.0)**: player + 12 enemy hulls + 3 bosses +
+      drones + crates re-rendered in Blender into `assets/ships/` (94 PNGs),
+      including hit-flash masks and boss rings. Drawn via the `ShipArt` contract
+      (visual outer edge = radius, canvas side = radius / 0.46); polygon fallback
+      kept if a texture is missing.
+- [x] **App icon (v1.1.0)**: cel-shaded 3/4 hero on a pastel nebula
+      (`assets/icons/`), wired into the project icon, Windows exe icon and
+      Android adaptive launcher icon.
+- [x] Windows release export: `build/windows/SpaceFighter.exe` (v1.1.0.0)
+- [x] Android APK: `SpaceFighter-Godot-v1.1.0.apk` (41 MB, portrait, target SDK
+      36, release-signed with the project keystore)
+- [x] On-device install verified: Android 36 emulator with hardware GPU
+      (1080x1920 and 1080x2400), versionName 1.1.0 / code 10, no black bars,
+      touch controls work, 0 Godot script/shader errors
 - [x] Release signing: project keystore (CN=Space Fighter, O=sctale), v2/v3 verified
+      (`apksigner verify --verbose`)
 - [x] Touch controls: 星爆 / 冲刺 / 换线 rings + top-right pause + menu buttons
 - [x] Touch controls: focus toggle (精准) + difficulty chips in the menu
-- [x] Bundled Noto CJK subset (`assets/fonts/AuroraCJK.ttf`, 229 KB, 639 glyphs)
+- [x] Bundled Noto CJK subset (`assets/fonts/AuroraCJK.ttf`, 267 KB, 938 mapped glyphs)
 - [x] Numeric parity: enemy hit radius `size * 0.78`, enemy bullet speed
       `min(300, 150×(1+tier×0.14))` (web `entities.js:1263,1393`)
 - [x] All 12 enemy behaviours, elite affixes, 6 movement / 9 fire modes,
@@ -59,7 +90,7 @@ godot --headless --path D:\V-Coding\space-fighter-godot \
   --script res://tools/verify_numbers.gd
 ```
 
-Expected: `VERIFY_OK checks=29` and exit code 0.
+Expected: `VERIFY_OK checks=76` and exit code 0.
 
 ## Export
 
@@ -84,9 +115,11 @@ port from it.
 
 ## Migration rules
 
-1. Keep pixel coordinates (540x960) and the original numeric constants; do not
-   reintroduce the Unity 0.025 world scale.
-2. Player hit radius is **4.6 px**, graze radius **28 px**.
+1. Keep the 540x960 design coordinates and original numeric constants; the
+   runtime viewport may expand to any phone aspect (`CFG.VIEW`), but gameplay
+   values stay in design pixels. Do not reintroduce the Unity 0.025 world scale.
+2. Player hit radius is **4.6 px**, graze radius **28 px**; the drawn hull is
+   deliberately much larger (32 px visual radius).
 3. Use swept segment-circle collision for bullets; do not use per-frame point
    checks.
 4. Add a gate assertion before adding a new subsystem, then port the web logic.
@@ -95,19 +128,34 @@ port from it.
 6. Sprite sizing follows the Unity `ShipArt` contract: the PNG canvas's max
    radius is `0.46 × edge`, so to make the visual outer edge equal the hit
    radius, draw the texture at `side = radius / 0.46`, centered. Player hull
-   canvas is 58.32 px (Unity world height 1.08 ÷ (10/540)); enemy hulls are
-   pre-rendered nose-down, player nose-up — do not rotate them 180°.
+   visual radius is 36 px (78.3 px canvas); enemy hulls are pre-rendered
+   nose-down, player nose-up — do not rotate them 180°.
 
 ## Art provenance
 
-`assets/ships/` (94 PNGs) and `assets/icons/` were extracted from
-`_archive/space-fighter-unity-v0.21.14-src.tar.gz`
-(`Assets/Resources/Ships/*.png`, `Assets/Icons/icon*_1024.png`). They are the
-Blender 4.5 Cycles renders described in `reference/docs/BLENDER-LOWPOLY.md`.
-To refresh them, re-extract from the archive (or re-run `reference/artgen/`);
-do not hand-edit the PNGs. `*_mask.png` are white silhouettes used for hit-flash.
-Bullets stay procedural (as in Unity v0.21.14); the legacy `bullet_*.png` in the
-archive are from the older v0.19 pipeline and are not used.
+The v1.1.0 sprites are re-renders of the archived Unity geometry using the
+project's own cel-shading pipeline, not the original PBR renders:
+
+- `tools/artgen_anime.py` — imports `reference/artgen/blender/gen_art.py`
+  (read-only source of the procedural models), swaps in `tools/anime_toon.py`
+  cel materials (two-tone shading, AO, diagonal gloss, Fresnel rim, Freestyle
+  outer/inner lines), renders at 2x and downscales to the existing 512/384/640
+  canvases. The `0.46 × side` art contract, mask and boss ring layers are
+  unchanged.
+- `tools/artgen_keyart.py` — 3/4 hero ship and 3D title logo.
+- `tools/gen_icon_anime.py` — legacy + adaptive launcher icon.
+- `assets/ships/*.png` (94 files) and `assets/keyart/` were produced by these
+  scripts; `*_mask.png` are white silhouettes for hit-flash.
+- Bullets stay procedural; the legacy `bullet_*.png` files are not used.
+
+Rebuild examples:
+
+```bash
+blender -b --factory-startup --python tools/artgen_anime.py -- \
+  --only player_pulse,boss_gatekeeper --out build/art_anime --samples 24
+blender -b --factory-startup --python tools/artgen_keyart.py -- --only hero,logo
+python tools/gen_icon_anime.py
+```
 
 ## Release signing
 

@@ -5,6 +5,23 @@ extends RefCounted
 const WIDTH := 540.0
 const HEIGHT := 960.0
 
+# 运行时视口：540x960 只是设计基准。Main 会根据手机实际屏幕改成
+# 例如 540x1200（长屏）或 720x960（平板），玩法边界与 HUD 全部跟随 VIEW。
+static var VIEW := Vector2(WIDTH, HEIGHT)
+static var SAFE_TOP := 0.0
+static var SAFE_BOTTOM := 0.0
+static var SAFE_LEFT := 0.0
+static var SAFE_RIGHT := 0.0
+
+static func set_view(size: Vector2) -> void:
+	VIEW = size
+
+static func set_safe(top: float, bottom: float, left: float, right: float) -> void:
+	SAFE_TOP = top
+	SAFE_BOTTOM = bottom
+	SAFE_LEFT = left
+	SAFE_RIGHT = right
+
 const PLAYER_HIT_R := 4.6
 const PLAYER_GRAZE_R := 28.0
 const PLAYER_SPEED := 440.0

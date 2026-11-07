@@ -87,8 +87,8 @@ func setup(p_index: int, zone: int, p_tier: int, p_diff: Dictionary) -> void:
 	max_hp = float(BASE_HP[index]) * CFG.boss_hp_scale(zone) * float(p_diff.get("bossHp", 1.0))
 	hp = max_hp
 	break_max = maxf(CFG.BOSS_BREAK_FLOOR, max_hp * CFG.BOSS_BREAK_FRAC_OF_MAX_HP)
-	anchor = Vector2(CFG.WIDTH * 0.5, CFG.HEIGHT * 0.21)
-	pos = Vector2(CFG.WIDTH * 0.5, -size)
+	anchor = Vector2(CFG.VIEW.x * 0.5, CFG.VIEW.y * 0.27)
+	pos = Vector2(CFG.VIEW.x * 0.5, -size)
 	timer = CFG.BOSS_INITIAL_CD
 	phase = 0
 	entered = false
@@ -235,7 +235,7 @@ func _cast_begin(p: Vector2) -> void:
 	# 位移类招式在这里决定去向
 	match move_index:
 		10:  # 相位闪现：闪到玩家一侧上方
-			pos = Vector2(clampf(p.x, 110.0, CFG.WIDTH - 110.0), CFG.HEIGHT * 0.28)
+			pos = Vector2(clampf(p.x, 110.0, CFG.VIEW.x - 110.0), CFG.VIEW.y * 0.28)
 			_ring(18, _boss_speed() * 0.7, 5.0, _tint(), age)
 		15:  # 贯穿冲撞：朝玩家冲
 			_charge_dir = (p - pos).normalized()
@@ -334,7 +334,7 @@ func _cast_tick(dt: float, p: Vector2) -> void:
 				for i in range(9):
 					if i == gap or i == gap + 1:
 						continue
-					var x := 40.0 + i * (CFG.WIDTH - 80.0) / 8.0
+					var x := 40.0 + i * (CFG.VIEW.x - 80.0) / 8.0
 					spawn_bullet.call(Vector2(x, pos.y + 20), Vector2(0, sp * 0.7), col, 6.0, "orb", 9.0)
 		14:  # 星脉脉冲
 			if _emit_t <= 0.0 and _volley < 4:
@@ -344,8 +344,8 @@ func _cast_tick(dt: float, p: Vector2) -> void:
 		15:  # 贯穿冲撞
 			var target := p
 			pos += _charge_dir * CFG.BOSS_BULLET_SPEED_BASE * 2.2 * dt
-			pos.x = clampf(pos.x, 70.0, CFG.WIDTH - 70.0)
-			pos.y = clampf(pos.y, anchor.y, CFG.HEIGHT * 0.55)
+			pos.x = clampf(pos.x, 70.0, CFG.VIEW.x - 70.0)
+			pos.y = clampf(pos.y, anchor.y, CFG.VIEW.y * 0.55)
 			if _emit_t <= 0.0:
 				_emit_t = 0.06
 				_shot(pos, _charge_dir.angle() + randf_range(-0.4, 0.4), sp * 0.6, 5.0, Color.html("#9b8cff"))
@@ -358,7 +358,7 @@ func _cast_tick(dt: float, p: Vector2) -> void:
 		17:  # 陨星暴雨
 			if _emit_t <= 0.0:
 				_emit_t = 0.07
-				spawn_bullet.call(Vector2(randf_range(30.0, CFG.WIDTH - 30.0), -20),
+				spawn_bullet.call(Vector2(randf_range(30.0, CFG.VIEW.x - 30.0), -20),
 					Vector2(0, sp * randf_range(0.8, 1.3)), col, 5.0, "orb", 9.0)
 		18:  # 猎群连射
 			if _emit_t <= 0.0 and _volley < 5:

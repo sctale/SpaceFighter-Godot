@@ -2,7 +2,6 @@ extends Node2D
 
 const CFG := preload("res://scripts/game_config.gd")
 
-const STAR_COUNT := 120
 const PLAYER_FIRE_LEVEL := 2
 const PLAYER_BULLET_RADIUS := 5.0
 const ENEMY_BULLET_RADIUS := 6.0
@@ -10,10 +9,10 @@ const GAME_OVER_TAP_DELAY := 0.6
 
 # 美术契约（与归档 Unity 版 ShipArt.cs 一致）：PNG 画布的最大半径 = 0.46 × 边长，
 # 所以"视觉外缘 = 判定半径"时，画布边长 = radius / 0.46。
-# 玩家机在 Unity 里画布世界高 1.08，换算到 540 设计像素 = 1.08 / (10/540) = 58.32，
-# 视觉半径 = 0.46 × 58.32 ≈ 26.83px。敌机精灵已按"机头朝下"渲染，无需旋转。
+# Unity 原画布视觉半径约 26.8px；v1.1.0 为赛璐璐描边可读性放大到 36px，
+# 判定半径仍是 4.6px（视觉远大于判定，标准弹幕手感）。敌机精灵机头朝下，无需旋转。
 const ART_EXTENT := 0.46
-const PLAYER_ART_RADIUS := 26.83
+const PLAYER_ART_RADIUS := 36.0
 
 class Bullet:
 	var pos: Vector2
@@ -98,7 +97,6 @@ var difficulty := "standard"
 var player_bullets: Array = []
 var enemy_bullets: Array = []
 var enemies: Array = []
-var stars: Array = []
 
 var pointer_active := false
 var pointer_pos := Vector2.ZERO
@@ -110,21 +108,119 @@ var zone := 1
 var zone_kills := 0
 var total_kills := 0
 var _tex_cache: Dictionary = {}
+var _keyart_cache: Dictionary = {}
+
+# 自适应视口与安全区（长屏/平板/刘海屏）
+var view_size := Vector2(CFG.WIDTH, CFG.HEIGHT)
+var safe_top := 0.0
+var safe_bottom := 0.0
+var safe_left := 0.0
+var safe_right := 0.0
+
+# 视觉层
+var backdrop: SpaceBackdrop
+var ui: UIOverlay
+var fx: FXLayer
+var shake := 0.0
+var shake_t := 0.0
+
+# 截图验收：`godot --path . -- -shot menu|play|boss`
+var _shot_mode := ""
+var _shot_t := 0.0
+var _shot_taken := false
+var _demo_no_fire := false
 
 
 func _ready() -> void:
 	randomize()
-	_init_stars()
+	_update_viewport_layout()
+	get_viewport().size_changed.connect(_update_viewport_layout)
+	player_pos = Vector2(view_size.x * 0.5, view_size.y - CFG.RESPAWN_INSET - safe_bottom)
+	if OS.has_feature("mobile"):
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 	weapons.spawn = _player_spawn_bullet
 	sfx = Sfx.new()
 	add_child(sfx)
 	_load_font()
 	_load_best()
+	_spawn_visuals()
+	var args := OS.get_cmdline_user_args()
 	# 调试：`godot --path . -- -boss` 直接进 Boss 战（截图/验证用）
-	if OS.get_cmdline_user_args().has("-boss") or OS.get_cmdline_args().has("-boss"):
+	if args.has("-boss"):
 		in_menu = false
 		_reset_game()
 		_start_boss()
+	if args.has("-shot"):
+		var idx := args.find("-shot")
+		if idx + 1 < args.size():
+			_shot_mode = String(args[idx + 1])
+		if _shot_mode == "play":
+			in_menu = false
+			_reset_game()
+		elif _shot_mode == "boss":
+			in_menu = false
+			_reset_game()
+			_start_boss()
+		elif _shot_mode == "demo":
+			_demo_no_fire = true
+			in_menu = false
+			_reset_game()
+		elif _shot_mode == "action":
+			in_menu = false
+			_reset_game()
+			var kinds := ["drifter", "lancer", "orbiter", "bulwark", "sniper", "sidewinder"]
+			for i in range(6):
+				_spawn_enemy(kinds[i], Vector2(80.0 + (i % 3) * 180.0, 260.0 + (i / 3) * 180.0),
+					i == 0, "none")
+		elif _shot_mode == "pause" or _shot_mode == "gameover":
+			in_menu = false
+			_reset_game()
+		_shot_taken = false
+
+
+func _update_viewport_layout() -> void:
+	var vs := get_viewport_rect().size
+	if vs.x < 1.0 or vs.y < 1.0:
+		return
+	view_size = vs
+	CFG.set_view(vs)
+	safe_top = 0.0
+	safe_bottom = 0.0
+	safe_left = 0.0
+	safe_right = 0.0
+	if OS.has_feature("mobile"):
+		var win := Vector2(DisplayServer.window_get_size())
+		var scale := minf(win.x / CFG.WIDTH, win.y / CFG.HEIGHT)
+		if scale <= 0.0:
+			scale = 1.0
+		var safe := Rect2(DisplayServer.get_display_safe_area())
+		if safe.size.x > 0.0 and safe.size.y > 0.0:
+			safe_top = maxf(0.0, safe.position.y / scale)
+			safe_bottom = maxf(0.0, (win.y - safe.end.y) / scale)
+			safe_left = maxf(0.0, safe.position.x / scale)
+			safe_right = maxf(0.0, (win.x - safe.end.x) / scale)
+	CFG.set_safe(safe_top, safe_bottom, safe_left, safe_right)
+	player_pos.x = clampf(player_pos.x, CFG.BOUND_SIDE_INSET, view_size.x - CFG.BOUND_SIDE_INSET)
+	player_pos.y = clampf(player_pos.y, view_size.y * CFG.BOUND_TOP_FRAC,
+		view_size.y - CFG.BOUND_BOTTOM_INSET - safe_bottom)
+
+
+func _spawn_visuals() -> void:
+	backdrop = SpaceBackdrop.new()
+	backdrop.main = self
+	backdrop.z_as_relative = false
+	backdrop.z_index = -1000
+	add_child(backdrop)
+	fx = FXLayer.new()
+	fx.font = ui_font
+	add_child(fx)
+	var layer := CanvasLayer.new()
+	layer.layer = 2
+	add_child(layer)
+	ui = UIOverlay.new()
+	ui.main = self
+	ui.font = ui_font
+	layer.add_child(ui)
 
 
 func _load_font() -> void:
@@ -176,36 +272,54 @@ func _nearest_enemy(pos: Vector2) -> Enemy:
 	return best
 
 
-func _init_stars() -> void:
-	stars.clear()
-	for i in range(STAR_COUNT):
-		stars.append({
-			"pos": Vector2(randf_range(0.0, CFG.WIDTH), randf_range(0.0, CFG.HEIGHT)),
-			"speed": randf_range(18.0, 95.0),
-			"size": randf_range(0.6, 2.1),
-			"alpha": randf_range(0.18, 0.8),
-		})
-
-
 func _process(delta: float) -> void:
+	if _shot_mode != "" and not _shot_taken:
+		_shot_t += delta
+		var wait := 3.6 if (_shot_mode == "play" or _shot_mode == "boss") else 1.6
+		if _shot_mode == "demo":
+			wait = 4.8
+		elif _shot_mode == "action":
+			wait = 3.0
+		elif _shot_mode == "pause" or _shot_mode == "gameover":
+			wait = 2.2
+		if _shot_mode == "pause" and not paused and _shot_t > 1.0:
+			paused = true
+		if _shot_mode == "gameover" and not game_over and _shot_t > 1.0:
+			game_over = true
+			game_over_time = 1.0
+			score = 66800
+			zone = 5
+			graze = 88
+			total_kills = 120
+			best_score = 60000
+		if _shot_t > wait:
+			_shot_taken = true
+			var dir := ProjectSettings.globalize_path("res://build/shots")
+			DirAccess.make_dir_recursive_absolute(dir)
+			var img := get_viewport().get_texture().get_image()
+			var path := dir.path_join("ui_%s_%dx%d.png" % [_shot_mode,
+				int(view_size.x), int(view_size.y)])
+			img.save_png(path)
+			print("SHOT_SAVED ", path)
+			get_tree().quit()
 	if in_menu:
-		_update_stars(delta * 0.35)
-		queue_redraw()
 		return
 	if paused:
 		queue_redraw()
 		return
 	if game_over:
 		game_over_time += delta
-		_update_stars(delta)
 		queue_redraw()
 		return
 
+	if shake_t > 0.0:
+		shake_t = maxf(0.0, shake_t - delta)
+		if shake_t <= 0.0:
+			shake = 0.0
 	focus = Input.is_key_pressed(KEY_SHIFT) or focus_locked
 	player_invuln = maxf(0.0, player_invuln - delta)
 	_update_skills(delta)
 	_update_economy(delta)
-	_update_stars(delta)
 	_update_player(delta)
 	_update_player_fire(delta)
 	_update_enemies(delta)
@@ -218,14 +332,16 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
-func _update_stars(delta: float) -> void:
-	for s in stars:
-		var p: Vector2 = s["pos"]
-		p.y += float(s["speed"]) * delta
-		if p.y > CFG.HEIGHT + 4.0:
-			p.y = -4.0
-			p.x = randf_range(0.0, CFG.WIDTH)
-		s["pos"] = p
+func _add_shake(amount: float, duration := 0.24) -> void:
+	shake = maxf(shake, amount)
+	shake_t = maxf(shake_t, duration)
+
+
+func _shake_offset() -> Vector2:
+	if shake_t <= 0.0 or shake <= 0.0:
+		return Vector2.ZERO
+	var k := shake * clampf(shake_t / 0.24, 0.0, 1.0)
+	return Vector2(randf_range(-k, k), randf_range(-k, k))
 
 
 func _update_player(delta: float) -> void:
@@ -255,13 +371,16 @@ func _update_player(delta: float) -> void:
 			player_pos = player_pos.lerp(target, k)
 			player_last_dir = clampf((target.x - player_pos.x) * 0.02, -1.0, 1.0)
 
-	var min_y := CFG.HEIGHT * CFG.BOUND_TOP_FRAC
-	player_pos.x = clampf(player_pos.x, CFG.BOUND_SIDE_INSET, CFG.WIDTH - CFG.BOUND_SIDE_INSET)
-	player_pos.y = clampf(player_pos.y, min_y, CFG.HEIGHT - CFG.BOUND_BOTTOM_INSET)
+	var min_y := maxf(view_size.y * CFG.BOUND_TOP_FRAC, safe_top + 110.0)
+	player_pos.x = clampf(player_pos.x, CFG.BOUND_SIDE_INSET, view_size.x - CFG.BOUND_SIDE_INSET)
+	player_pos.y = clampf(player_pos.y, min_y,
+		view_size.y - CFG.BOUND_BOTTOM_INSET - safe_bottom)
 	player_bank = lerpf(player_bank, player_last_dir * 0.22, 1.0 - exp(-12.0 * delta))
 
 
 func _update_player_fire(delta: float) -> void:
+	if _demo_no_fire:
+		return
 	weapons.precision = focus
 	weapons.overdrive = overdrive > 0.0
 	weapons.swap_idle = swap_idle
@@ -309,6 +428,9 @@ func _trigger_dash() -> void:
 	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
 		dir.y += 1.0
 	dash_dir = dir.normalized() if dir.length_squared() > 0.0 else Vector2(0, -1)
+	if fx != null:
+		fx.dash(player_pos, dash_dir, Color.html("#57E6D8"))
+	_add_shake(3.0, 0.16)
 
 
 func _trigger_nova() -> void:
@@ -318,6 +440,9 @@ func _trigger_nova() -> void:
 	overdrive = CFG.OVERDRIVE_TIME
 	player_invuln = maxf(player_invuln, CFG.INVULN_AFTER_NOVA)
 	sfx.play_nova()
+	if fx != null:
+		fx.nova(player_pos)
+	_add_shake(13.0, 0.45)
 	# 清屏敌弹并造成伤害
 	var cleared := enemy_bullets.size()
 	score += cleared * CFG.NOVA_SCORE_PER_CLEARED_BULLET
@@ -380,28 +505,28 @@ func _spawn_wave(n: int) -> void:
 	match n % 5:
 		0:  # 横排
 			for i in range(count):
-				var x := 90.0 + i * (CFG.WIDTH - 180.0) / maxf(1.0, count - 1.0)
+				var x := 90.0 + i * (view_size.x - 180.0) / maxf(1.0, count - 1.0)
 				_spawn_enemy(kind, Vector2(x, -40.0 - absf(i - (count - 1) * 0.5) * 18.0),
 					elite_wave and i == count / 2, affix)
 		1:  # V 字
 			for i in range(count):
 				var off := i - (count - 1) * 0.5
-				_spawn_enemy(kind, Vector2(CFG.WIDTH * 0.5 + off * 62.0, -40.0 - absf(off) * 34.0),
+				_spawn_enemy(kind, Vector2(view_size.x * 0.5 + off * 62.0, -40.0 - absf(off) * 34.0),
 					elite_wave and absf(off) < 0.6, affix)
 		2:  # 双列
 			for i in range(count):
 				var side := -1.0 if i % 2 == 0 else 1.0
 				var row := i / 2
-				_spawn_enemy(kind, Vector2(CFG.WIDTH * 0.5 + side * 120.0, -40.0 - row * 52.0),
+				_spawn_enemy(kind, Vector2(view_size.x * 0.5 + side * 120.0, -40.0 - row * 52.0),
 					elite_wave and i < 2, affix)
 		3:  # 集群
 			for i in range(count + 1):
-				_spawn_enemy(kind, Vector2(randf_range(70.0, CFG.WIDTH - 70.0), -40.0 - i * 26.0),
+				_spawn_enemy(kind, Vector2(randf_range(70.0, view_size.x - 70.0), -40.0 - i * 26.0),
 					elite_wave and i == 0, affix)
 		_:  # 侧翼包抄
 			for i in range(count):
 				var side := -1.0 if i < count * 0.5 else 1.0
-				_spawn_enemy(kind, Vector2(CFG.WIDTH * 0.5 + side * (150.0 + i * 16.0), -40.0 - (i % 2) * 30.0),
+				_spawn_enemy(kind, Vector2(view_size.x * 0.5 + side * (150.0 + i * 16.0), -40.0 - (i % 2) * 30.0),
 					elite_wave and i == 0, affix)
 
 
@@ -475,6 +600,10 @@ func _update_boss(delta: float) -> void:
 	if boss.dying and boss.die_t > 1.2:
 		score += int(roundf(3000.0 * float(CFG.DIFFICULTY[difficulty]["scoreMul"]) * multiplier))
 		sfx.play_boom()
+		if fx != null:
+			fx.explode(boss.pos, Color.html("#FFB3D9"), boss.size * 1.6, true)
+			fx.nova(boss.pos)
+		_add_shake(15.0, 0.55)
 		boss = null
 		boss_cleared = true
 		zone = mini(10, zone + 1)
@@ -562,12 +691,19 @@ func _update_crates(delta: float) -> void:
 func _spawn_crate() -> void:
 	var kinds := ["weapon", "drone", "life", "shield", "charge", "nova", "gem", "swap", "reflect", "prism"]
 	var c := Crate.new()
-	c.setup(Vector2(randf_range(60.0, CFG.WIDTH - 60.0), -30.0), kinds[randi() % kinds.size()])
+	c.setup(Vector2(randf_range(60.0, view_size.x - 60.0), -30.0), kinds[randi() % kinds.size()])
 	crates.append(c)
 
 
 func _apply_crate(kind: String) -> void:
 	sfx.play_pick()
+	if fx != null:
+		var labels := {
+			"weapon": "武器强化", "drone": "僚机 +1", "life": "船体修复",
+			"shield": "护盾 +1", "charge": "能量满充", "nova": "星爆就绪",
+			"gem": "+500", "swap": "解锁武器线", "reflect": "反射护盾", "prism": "棱镜解锁",
+		}
+		fx.pickup(player_pos, Color.html("#FFC554"), String(labels.get(kind, "补给")))
 	match kind:
 		"weapon":
 			weapons.grant_level()
@@ -627,8 +763,8 @@ func _update_bullets(delta: float) -> void:
 			else:
 				b.pos += b.vel * delta
 			b.life -= delta
-			if b.life <= 0.0 or b.pos.y < -40.0 or b.pos.y > CFG.HEIGHT + 40.0 \
-					or b.pos.x < -40.0 or b.pos.x > CFG.WIDTH + 40.0:
+			if b.life <= 0.0 or b.pos.y < -40.0 or b.pos.y > view_size.y + 40.0 \
+					or b.pos.x < -40.0 or b.pos.x > view_size.x + 40.0:
 				arr.remove_at(i)
 
 
@@ -656,6 +792,8 @@ func _resolve_collisions() -> void:
 				if boss.take_damage(bdmg):
 					sfx.play_hit()
 				boss.damage_flash()
+				if fx != null:
+					fx.hit(b.pos, Color.html("#FFF0C2"))
 				score += int(roundf(10.0 * float(diff["scoreMul"])))
 				if b.pierce_left > 0:
 					b.pierce_left -= 1
@@ -670,6 +808,8 @@ func _resolve_collisions() -> void:
 			if _seg_point_d2(b.prev, b.pos, e.pos) <= rr * rr:
 				e.hp -= b.damage * e.damage_taken_mul
 				e.flash = 0.08
+				if fx != null:
+					fx.hit(b.pos, Color(1.0, 0.92, 0.68))
 				b.hit_enemies.append(e)
 				if e.hp <= 0.0:
 					_kill_enemy(ei, diff)
@@ -703,6 +843,12 @@ func _kill_enemy(index: int, diff: Dictionary) -> void:
 			_spawn_enemy("shardling", at + Vector2(cos(a), sin(a)) * 18.0)
 	if e.elite:
 		sfx.play_boom()
+	if fx != null:
+		var col := Color.html(String(e.def.get("color", "#ff6f91")))
+		fx.explode(at, col, e.size, e.elite)
+		fx.float_text(at + Vector2(0, -e.size * 0.7), "+%d" % int(e.score_value),
+			Color(1.0, 0.94, 0.72), 14)
+	_add_shake(5.0 if e.elite else 1.8, 0.26)
 
 	for i in range(enemy_bullets.size() - 1, -1, -1):
 		var b: Bullet = enemy_bullets[i]
@@ -728,6 +874,9 @@ func _kill_enemy(index: int, diff: Dictionary) -> void:
 
 func _player_hit() -> void:
 	sfx.play_hit()
+	if fx != null:
+		fx.explode(player_pos, Color.html("#FF6B7A"), 34.0, true)
+	_add_shake(10.0, 0.36)
 	# 护盾优先，掉了只丢一层；护盾耗尽才吃船体
 	if player_shields > 0:
 		player_shields -= 1
@@ -760,19 +909,30 @@ func _seg_point_d2(a: Vector2, b: Vector2, p: Vector2) -> float:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if in_menu:
-		if event is InputEventKey and event.pressed and not event.echo:
+	if event is InputEventKey and event.pressed and not event.echo:
+		if in_menu:
 			if event.keycode == KEY_ENTER or event.keycode == KEY_SPACE:
 				_start_run()
-		elif (event is InputEventMouseButton or event is InputEventScreenTouch) and event.pressed:
-			_menu_press(event.position)
-		return
-	if event is InputEventKey and event.pressed and not event.echo:
+			elif event.keycode == KEY_1:
+				difficulty = "cruise"
+			elif event.keycode == KEY_2:
+				difficulty = "standard"
+			elif event.keycode == KEY_3:
+				difficulty = "abyss"
+			return
+		if paused:
+			if event.keycode == KEY_ESCAPE or event.keycode == KEY_P:
+				paused = false
+			return
+		if game_over:
+			if event.keycode == KEY_R or event.keycode == KEY_ENTER:
+				_start_run()
+			return
 		match event.keycode:
 			KEY_R:
 				_reset_game()
 			KEY_ESCAPE, KEY_P:
-				paused = not paused
+				paused = true
 			KEY_1:
 				difficulty = "cruise"
 			KEY_2:
@@ -791,88 +951,117 @@ func _unhandled_input(event: InputEvent) -> void:
 				DisplayServer.window_set_mode(
 					DisplayServer.WINDOW_MODE_WINDOWED if w == DisplayServer.WINDOW_MODE_FULLSCREEN
 					else DisplayServer.WINDOW_MODE_FULLSCREEN)
+		return
 
+	var press_pos := Vector2.ZERO
+	var is_press := false
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if game_over and game_over_time > GAME_OVER_TAP_DELAY:
-			_reset_game()
+		press_pos = event.position
+		is_press = event.pressed
+		if in_menu or paused or game_over:
+			if is_press and ui != null:
+				_handle_ui_action(ui.press(press_pos))
 			return
-		if event.pressed and _press_control(event.position):
-			return
-		pointer_active = event.pressed
-		if event.pressed:
-			pointer_pos = event.position
+		if is_press and ui != null:
+			var a: String = ui.press(press_pos)
+			if a != "":
+				_handle_ui_action(a)
+				return
+		pointer_active = is_press
+		if is_press:
+			pointer_pos = press_pos
 			_start_drag()
 	elif event is InputEventMouseMotion and pointer_active:
 		pointer_pos = event.position
 	elif event is InputEventScreenTouch:
-		if game_over and event.pressed and game_over_time > GAME_OVER_TAP_DELAY:
-			_reset_game()
+		press_pos = event.position
+		is_press = event.pressed
+		if in_menu or paused or game_over:
+			if is_press and ui != null:
+				_handle_ui_action(ui.press(press_pos))
 			return
-		if event.pressed and _press_control(event.position):
-			return
-		pointer_active = event.pressed
-		if event.pressed:
-			pointer_pos = event.position
+		if is_press and ui != null:
+			var a: String = ui.press(press_pos)
+			if a != "":
+				_handle_ui_action(a)
+				return
+		pointer_active = is_press
+		if is_press:
+			pointer_pos = press_pos
 			_start_drag()
 	elif event is InputEventScreenDrag:
 		pointer_pos = event.position
 
 
-## 触屏控件热区（540x960）：x,y,w,h。绘制与判定共用这一份。
-func _controls() -> Dictionary:
-	return {
-		"pause": Vector4(CFG.WIDTH - 62.0, 12.0, 44.0, 44.0),
-		"nova": Vector4(CFG.WIDTH - 100.0, CFG.HEIGHT - 112.0, 72.0, 72.0),
-		"dash": Vector4(CFG.WIDTH - 182.0, CFG.HEIGHT - 96.0, 58.0, 58.0),
-		"weapon": Vector4(CFG.WIDTH - 168.0, CFG.HEIGHT - 190.0, 58.0, 58.0),
-		"focus": Vector4(CFG.WIDTH - 252.0, CFG.HEIGHT - 96.0, 58.0, 58.0),
-	}
-
-
-func _press_control(p: Vector2) -> bool:
-	var ctrls := _controls()
-	for k in ctrls:
-		var r: Vector4 = ctrls[k]
-		if Rect2(r.x, r.y, r.z, r.w).has_point(p):
-			match String(k):
-				"pause":
-					paused = not paused
-				"dash":
-					_trigger_dash()
-				"nova":
-					_trigger_nova()
-				"weapon":
-					if weapons.cycle_weapon():
-						swap_idle = 0.0
-				"focus":
-					focus_locked = not focus_locked
-			return true
-	return false
+func _handle_ui_action(action: String) -> bool:
+	match action:
+		"":
+			return false
+		"diff_cruise":
+			difficulty = "cruise"
+		"diff_standard":
+			difficulty = "standard"
+		"diff_abyss":
+			difficulty = "abyss"
+		"start":
+			_start_run()
+		"pause":
+			paused = true
+		"nova":
+			_trigger_nova()
+		"dash":
+			_trigger_dash()
+		"weapon":
+			if weapons.cycle_weapon():
+				swap_idle = 0.0
+		"focus":
+			focus_locked = not focus_locked
+		"resume":
+			paused = false
+		"restart", "retry":
+			_start_run()
+		"menu":
+			_to_menu()
+		_:
+			return false
+	return true
 
 
 func _start_drag() -> void:
-	drag_offset.x = clampf(player_pos.x - pointer_pos.x, -CFG.WIDTH * 0.3, CFG.WIDTH * 0.3)
+	drag_offset.x = clampf(player_pos.x - pointer_pos.x, -view_size.x * 0.3, view_size.x * 0.3)
 	drag_offset.y = clampf(player_pos.y - pointer_pos.y, -140.0, 60.0)
 
 
 func _start_run() -> void:
-	in_menu = false
 	_reset_game()
 
 
-func _menu_press(p: Vector2) -> void:
-	var keys := ["cruise", "standard", "abyss"]
-	for i in range(3):
-		var r := Rect2(CFG.WIDTH * 0.5 - 168.0 + i * 114.0, 400.0, 104.0, 40.0)
-		if r.has_point(p):
-			difficulty = keys[i]
-			return
-	if Rect2(CFG.WIDTH * 0.5 - 140.0, 500.0, 280.0, 64.0).has_point(p):
-		_start_run()
+func _to_menu() -> void:
+	_save_best()
+	in_menu = true
+	paused = false
+	game_over = false
+	score = 0
+	graze = 0
+	combo = 0
+	multiplier = 1
+	zone = 1
+	zone_kills = 0
+	total_kills = 0
+	player_bullets.clear()
+	enemy_bullets.clear()
+	enemies.clear()
+	crates.clear()
+	drones.clear()
+	boss = null
+	boss_pending = false
+	boss_cleared = false
+	player_pos = Vector2(view_size.x * 0.5, view_size.y - CFG.RESPAWN_INSET - safe_bottom)
 
 
 func _reset_game() -> void:
-	player_pos = Vector2(CFG.WIDTH * 0.5, CFG.HEIGHT - CFG.RESPAWN_INSET)
+	in_menu = false
+	player_pos = Vector2(view_size.x * 0.5, view_size.y - CFG.RESPAWN_INSET - safe_bottom)
 	player_lives = CFG.START_LIVES
 	player_invuln = CFG.INVULN_ON_SPAWN
 	player_bank = 0.0
@@ -923,6 +1112,17 @@ func _ship_tex(name: String) -> Texture2D:
 	return tex
 
 
+func _keyart_tex(name: String) -> Texture2D:
+	if _keyart_cache.has(name):
+		return _keyart_cache[name]
+	var path := "res://assets/keyart/%s.png" % name
+	var tex: Texture2D = null
+	if ResourceLoader.exists(path):
+		tex = load(path)
+	_keyart_cache[name] = tex
+	return tex
+
+
 ## 按"视觉外缘 = radius"画一张机体精灵；缺图时返回 false，调用方回退到几何块。
 func _draw_ship(name: String, center: Vector2, radius: float, angle: float, modulate: Color) -> bool:
 	var tex := _ship_tex(name)
@@ -936,11 +1136,10 @@ func _draw_ship(name: String, center: Vector2, radius: float, angle: float, modu
 
 
 func _draw() -> void:
-	_draw_sky()
-	_draw_stars()
 	if in_menu:
-		_draw_menu()
 		return
+	var off := _shake_offset()
+	draw_set_transform(off, 0.0, Vector2.ONE)
 	_draw_crates()
 	_draw_bullets()
 	_draw_enemies()
@@ -949,39 +1148,7 @@ func _draw() -> void:
 	if not game_over:
 		_draw_player()
 		_draw_drones()
-	_draw_hud()
-	_draw_controls()
-	if paused:
-		_draw_overlay("已暂停", "点右上角继续，或按 P")
-	if game_over:
-		_draw_game_over()
-
-
-## 每个星区一套天空渐变 + 两层星云（对标 web 的 10 套 zone sky）。
-const ZONE_SKIES := [
-	["#050817", "#0b1430"], ["#0a0618", "#1a0f33"], ["#04140f", "#0b2a25"],
-	["#140a06", "#2a170c"], ["#0a0a1a", "#1c2340"], ["#100616", "#2a1030"],
-	["#041018", "#0a2436"], ["#140610", "#2c0d1f"], ["#06120a", "#12301c"],
-	["#0c0414", "#241040"],
-]
-
-
-func _draw_sky() -> void:
-	var pair: Array = ZONE_SKIES[clampi(zone - 1, 0, 9)]
-	var top := Color.html(String(pair[0]))
-	var bot := Color.html(String(pair[1]))
-	var bands := 24
-	for i in range(bands):
-		var k := float(i) / float(bands - 1)
-		var y := CFG.HEIGHT * float(i) / float(bands)
-		draw_rect(Rect2(0, y, CFG.WIDTH, CFG.HEIGHT / bands + 1.0), top.lerp(bot, k))
-	# 星云
-	var t := Time.get_ticks_msec() * 0.00002
-	# 星云：用同心圆近似软边（单个 draw_circle 会有硬边圆盘）
-	_blob(Vector2(CFG.WIDTH * 0.25 + sin(t * 3.0) * 30.0, CFG.HEIGHT * 0.3), 250.0,
-		Color(bot.r, bot.g, bot.b, 0.30))
-	_blob(Vector2(CFG.WIDTH * 0.78, CFG.HEIGHT * 0.62 + cos(t * 2.0) * 26.0), 210.0,
-		Color(top.r, top.g, top.b, 0.32))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 func _blob(center: Vector2, radius: float, col: Color, layers := 7) -> void:
@@ -990,81 +1157,49 @@ func _blob(center: Vector2, radius: float, col: Color, layers := 7) -> void:
 		draw_circle(center, radius * k, Color(col.r, col.g, col.b, col.a / float(layers)))
 
 
-func _draw_menu() -> void:
-	var font := ui_font
-	draw_rect(Rect2(0, 0, CFG.WIDTH, CFG.HEIGHT), Color(0.01, 0.02, 0.05, 0.62))
-	draw_string(font, Vector2(0, 250), "裂隙巡航", HORIZONTAL_ALIGNMENT_CENTER, CFG.WIDTH, 56,
-		Color.html("#f3f8ff"))
-	draw_string(font, Vector2(0, 292), "A U R O R A   R I F T", HORIZONTAL_ALIGNMENT_CENTER,
-		CFG.WIDTH, 14, Color.html("#69f5dc"))
-	draw_string(font, Vector2(0, 350), "最高分  %d" % best_score, HORIZONTAL_ALIGNMENT_CENTER,
-		CFG.WIDTH, 18, Color.html("#ffd27a"))
-	# 难度胶囊
-	var names := ["巡航", "标准", "深渊"]
-	var keys := ["cruise", "standard", "abyss"]
-	for i in range(3):
-		var r := Rect2(CFG.WIDTH * 0.5 - 168.0 + i * 114.0, 400.0, 104.0, 40.0)
-		var on: bool = keys[i] == difficulty
-		draw_rect(r, Color(0.41, 0.96, 0.86, 0.16) if on else Color(0.03, 0.05, 0.12, 0.6))
-		draw_rect(r, Color(0.41, 0.96, 0.86, 0.5) if on else Color(0.63, 0.71, 1.0, 0.16), false, 1.0)
-		draw_string(font, Vector2(r.position.x, r.position.y + 27), names[i],
-			HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 17, Color.html("#f3f8ff") if on else Color.html("#8d9bbd"))
-	# 开始按钮
-	var btn := Rect2(CFG.WIDTH * 0.5 - 140.0, 500.0, 280.0, 64.0)
-	draw_rect(btn, Color(0.41, 0.96, 0.86, 0.9))
-	draw_string(font, Vector2(btn.position.x, btn.position.y + 40), "开始巡航",
-		HORIZONTAL_ALIGNMENT_CENTER, btn.size.x, 24, Color(0.02, 0.08, 0.12))
-	draw_string(font, Vector2(0, 640), "拖动 / WASD 移动   ·   Shift 精准   ·   Tab 换线",
-		HORIZONTAL_ALIGNMENT_CENTER, CFG.WIDTH, 13, Color.html("#8d9bbd"))
-	draw_string(font, Vector2(0, 664), "空格 冲刺   ·   X 星爆   ·   P 暂停", HORIZONTAL_ALIGNMENT_CENTER,
-		CFG.WIDTH, 13, Color.html("#8d9bbd"))
-	var ver := String(ProjectSettings.get_setting("application/config/version", "0.0.0"))
-	var vi := Engine.get_version_info()
-	draw_string(font, Vector2(0, CFG.HEIGHT - 42), "v%s  ·  Godot %d.%d 移植版" % [ver, vi["major"], vi["minor"]],
-		HORIZONTAL_ALIGNMENT_CENTER,
-		CFG.WIDTH, 12, Color.html("#5e6b8c"))
-
-
 func _draw_boss() -> void:
-	var font := ui_font
 	var art: String = ["boss_gatekeeper", "boss_weaver", "boss_helios"][boss.index]
 	var ring: String = ["boss_gatekeeper_ring", "boss_weaver_ring", "boss_helios_ring"][boss.index]
-	_draw_ship(art, boss.pos, boss.size, 0.0, Color.WHITE)
-	# 环层反向旋转
-	_draw_ship(ring, boss.pos, boss.size * 1.08, -boss.spin * 0.8,
-		Color(1, 1, 1, 0.55 if boss.phase >= 1 else 0.35))
+	var alpha := 1.0
+	var grow := 1.06
+	if boss.dying:
+		var k := clampf(boss.die_t / 1.2, 0.0, 1.0)
+		alpha = 1.0 - k
+		grow = 1.06 + k * 0.16
+	_draw_shadow(boss.pos + Vector2(0, 12), boss.size * 0.98, Color(0.10, 0.06, 0.16, 0.24 * alpha))
+	_blob(boss.pos, boss.size * 1.42, Color(1.0, 0.96, 0.86, 0.10 * alpha), 8)
+	if boss.telegraph > 0.0 and not boss.dying:
+		var k := clampf(float(boss.telegraph) / 0.5, 0.0, 1.0)
+		var warn: Color = boss.tell_color
+		draw_arc(boss.pos, boss.size * (1.16 + (1.0 - k) * 0.22), 0, TAU, 64,
+			Color(warn.r, warn.g, warn.b, 0.35 + 0.45 * k), 3.0, true)
+		for i in range(8):
+			var ang := TAU * float(i) / 8.0
+			draw_line(boss.pos + Vector2(cos(ang), sin(ang)) * boss.size * 1.2,
+				boss.pos + Vector2(cos(ang), sin(ang)) * boss.size * 1.46,
+				Color(warn.r, warn.g, warn.b, 0.55 * k), 2.0, true)
+	_draw_ship(art, boss.pos, boss.size * grow, 0.0, Color(1, 1, 1, alpha))
+	_draw_ship(ring, boss.pos, boss.size * grow * 1.08, -boss.spin * 0.8,
+		Color(1, 1, 1, (0.62 if boss.phase >= 1 else 0.40) * alpha))
 	if boss.flash > 0.0:
-		_draw_ship(art + "_mask", boss.pos, boss.size, 0.0,
-			Color(1, 1, 1, clampf(boss.flash / 0.08, 0.0, 1.0) * 0.8))
-	# 血条 + 名称 + 预告
-	var w := CFG.WIDTH - 96.0
-	var x := 48.0
-	draw_rect(Rect2(x, 104, w, 10), Color(0.1, 0.05, 0.1, 0.85))
-	draw_rect(Rect2(x, 104, w * boss.hp_frac(), 10), Color.html("#ff6f91"))
-	draw_rect(Rect2(x, 104, w, 10), Color(1, 0.4, 0.55, 0.35), false, 1.0)
-	draw_string(font, Vector2(x, 98), "%s · %s  P%d" % [boss.title_zh, boss.name_zh, boss.phase + 1],
-		HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.html("#ffd1dc"))
-	if boss.stun > 0.0:
-		draw_string(font, Vector2(x, 132), "破防！伤害 +35%", HORIZONTAL_ALIGNMENT_LEFT, -1, 12,
-			Color.html("#ffd27a"))
-	elif boss.cast_label != "":
-		draw_string(font, Vector2(x, 120), ("预告 · " if boss.telegraph > 0.0 else "") + boss.cast_label,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.html("#ff9ab4"))
-	if boss.desperate:
-		draw_string(font, Vector2(CFG.WIDTH - 120, 132), "临界", HORIZONTAL_ALIGNMENT_LEFT, -1, 12,
-			Color.html("#ffd27a"))
+		_draw_ship(art + "_mask", boss.pos, boss.size * grow, 0.0,
+			Color(1, 1, 1, clampf(boss.flash / 0.08, 0.0, 1.0) * 0.85 * alpha))
 
 
 func _draw_crates() -> void:
 	for c in crates:
 		var tex := _ship_tex("crate_" + (c.kind if c.kind != "nova" else "gem"))
+		var side := 38.0 + sin(c.spin) * 2.0
+		_draw_shadow(c.pos + Vector2(0, 7), 16.0, Color(0.10, 0.06, 0.16, 0.20))
+		_blob(c.pos, 26.0, Color(1.0, 0.93, 0.72, 0.20), 5)
 		if tex != null:
-			var side := 34.0 + sin(c.spin) * 2.0
 			draw_set_transform(c.pos, c.spin * 0.15, Vector2.ONE)
 			draw_texture_rect(tex, Rect2(-side * 0.5, -side * 0.5, side, side), false, Color.WHITE)
 			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		else:
-			draw_rect(Rect2(c.pos - Vector2(12, 12), Vector2(24, 24)), Color(0.41, 0.96, 0.86, 0.8))
+			draw_rect(Rect2(c.pos - Vector2(13, 13), Vector2(26, 26)), Color(0.41, 0.96, 0.86, 0.8))
+		draw_arc(c.pos, side * 0.72, c.spin * 0.4, c.spin * 0.4 + PI * 1.1, 20,
+			Color(1, 1, 1, 0.30), 1.5, true)
 
 
 func _draw_drones() -> void:
@@ -1072,87 +1207,98 @@ func _draw_drones() -> void:
 	var art := {"gunner": "drone_cannon", "lance": "drone_seeker", "aegis": "drone_support", "swarm": "drone_swarm"}
 	for i in range(drones.size()):
 		var slot: Vector2 = slots[i] if i < slots.size() else Vector2.ZERO
-		_draw_ship(String(art[drones[i]["kind"]]), player_pos + slot, 13.0, 0.0, Color(1, 1, 1, 0.95))
-
-
-## 触屏动作环：星爆 / 冲刺 / 换线 + 右上暂停。热区见 _controls()。
-func _draw_controls() -> void:
-	var font := ui_font
-	var ctrls := _controls()
-	# 暂停
-	var pr: Vector4 = ctrls["pause"]
-	var pc := Vector2(pr.x + pr.z * 0.5, pr.y + pr.w * 0.5)
-	draw_circle(pc, 18.0, Color(0.039, 0.067, 0.14, 0.75))
-	draw_line(pc + Vector2(-7, -8), pc + Vector2(-7, 8), Color(0.55, 0.6, 0.73), 3.0)
-	draw_line(pc + Vector2(3, -8), pc + Vector2(3, 8), Color(0.55, 0.6, 0.73), 3.0)
-	# 星爆
-	var nr: Vector4 = ctrls["nova"]
-	var nc := Vector2(nr.x + nr.z * 0.5, nr.y + nr.w * 0.5)
-	var ready := nova >= 100.0
-	draw_circle(nc, 32.0, Color(1.0, 0.82, 0.35, 0.16) if ready else Color(0.039, 0.067, 0.14, 0.8))
-	draw_arc(nc, 30.0, 0, TAU, 40, Color(1.0, 0.82, 0.35, 0.9) if ready else Color(0.4, 0.43, 0.55, 0.6), 3.0, true)
-	draw_arc(nc, 30.0, -PI / 2.0, -PI / 2.0 + TAU * clampf(nova / 100.0, 0.0, 1.0), 40,
-		Color(1.0, 0.82, 0.35, 0.95), 3.0, true)
-	draw_string(font, nc + Vector2(-16, 5), "星爆", HORIZONTAL_ALIGNMENT_LEFT, -1, 14,
-		Color(1.0, 0.82, 0.35) if ready else Color(0.6, 0.63, 0.75))
-	# 冲刺
-	var dr: Vector4 = ctrls["dash"]
-	var dc := Vector2(dr.x + dr.z * 0.5, dr.y + dr.w * 0.5)
-	draw_circle(dc, 26.0, Color(0.039, 0.067, 0.14, 0.8))
-	draw_arc(dc, 24.0, 0, TAU, 32, Color(0.41, 0.96, 0.86, 0.85), 2.5, true)
-	if dash_cd > 0.0:
-		draw_arc(dc, 24.0, -PI / 2.0, -PI / 2.0 + TAU * (1.0 - dash_cd / CFG.DASH_COOLDOWN), 32,
-			Color(0.41, 0.96, 0.86, 0.25), 2.5, true)
-	draw_string(font, dc + Vector2(-13, 5), "冲刺", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.41, 0.96, 0.86))
-	# 换线
-	var wr: Vector4 = ctrls["weapon"]
-	var wc := Vector2(wr.x + wr.z * 0.5, wr.y + wr.w * 0.5)
-	var wtint := Color.html(String(CFG.WEAPON_LINES[weapons.active_id]["tint"]))
-	draw_circle(wc, 26.0, Color(0.039, 0.067, 0.14, 0.8))
-	draw_arc(wc, 24.0, 0, TAU, 32, Color(wtint.r, wtint.g, wtint.b, 0.85), 2.5, true)
-	draw_string(font, wc + Vector2(-13, -2), "换线", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, wtint)
-	draw_string(font, wc + Vector2(-13, 12), "L%d" % weapons.active().level,
-		HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(0.55, 0.6, 0.73))
-	# 精准模式（触屏切换；键盘 Shift 同时有效）
-	var fr: Vector4 = ctrls["focus"]
-	var fc := Vector2(fr.x + fr.z * 0.5, fr.y + fr.w * 0.5)
-	draw_circle(fc, 26.0, Color(0.039, 0.067, 0.14, 0.8))
-	draw_arc(fc, 24.0, 0, TAU, 32,
-		Color(0.41, 0.96, 0.86, 0.95) if focus_locked else Color(0.4, 0.43, 0.55, 0.6), 2.5, true)
-	draw_string(font, fc + Vector2(-13, 5), "精准", HORIZONTAL_ALIGNMENT_LEFT, -1, 13,
-		Color.html("#69f5dc") if focus_locked else Color(0.55, 0.6, 0.73))
-
-
-func _draw_stars() -> void:
-	for s in stars:
-		var c := Color(0.85, 0.93, 1.0, float(s["alpha"]))
-		draw_circle(s["pos"], float(s["size"]), c)
+		var dp := player_pos + slot
+		_blob(dp, 17.0, Color(0.85, 1.0, 0.96, 0.18), 5)
+		_draw_ship(String(art[drones[i]["kind"]]), dp, 16.0, 0.0, Color(1, 1, 1, 0.96))
 
 
 func _draw_bullets() -> void:
 	for b in player_bullets:
-		# 拖尾只画 8px：高速弹每帧跨 20px，画满 prev→pos 会连成一条激光
-		var tail: Vector2 = b.pos - b.vel.normalized() * minf(8.0, b.pos.distance_to(b.prev))
-		draw_line(tail, b.pos, Color(b.tint.r, b.tint.g, b.tint.b, 0.5), 2.0, true)
-		draw_circle(b.pos, b.radius, b.tint)
+		var col: Color = b.tint
+		var dir: Vector2 = b.vel.normalized()
+		var tail: Vector2 = b.pos - dir * minf(20.0, b.pos.distance_to(b.prev))
+		draw_line(tail, b.pos, Color(col.r, col.g, col.b, 0.35), b.radius * 1.25, true)
+		draw_circle(b.pos, b.radius * 1.5, Color(col.r, col.g, col.b, 0.16))
+		match String(b.kind):
+			"lance":
+				var half: Vector2 = dir * b.radius * 3.2
+				draw_line(b.pos - half, b.pos + half, Color(1, 1, 1, 0.85), b.radius * 0.7, true)
+				draw_line(b.pos - half * 0.8, b.pos + half * 0.8, col, b.radius * 1.5, true)
+			"bolt", "micro":
+				var half2: Vector2 = dir * b.radius * 1.7
+				draw_line(b.pos - half2, b.pos + half2, col, b.radius * 0.9, true)
+				draw_circle(b.pos, b.radius * 0.62, Color(1, 1, 1, 0.9))
+			_:
+				draw_circle(b.pos, b.radius, col)
+				draw_circle(b.pos, b.radius * 0.5, Color(1, 1, 1, 0.85))
 	for b in enemy_bullets:
-		draw_circle(b.pos, b.radius + 2.0, Color(b.tint.r, b.tint.g, b.tint.b, 0.16))
-		draw_circle(b.pos, b.radius, b.tint)
-		draw_circle(b.pos, b.radius * 0.45, Color(1, 1, 1, 0.72))
+		var ecol: Color = b.tint
+		var r: float = b.radius
+		draw_circle(b.pos, r + 3.0, Color(0.12, 0.08, 0.18, 0.42))
+		draw_circle(b.pos, r + 1.5, Color(ecol.r, ecol.g, ecol.b, 0.30))
+		draw_circle(b.pos, r, ecol)
+		draw_circle(b.pos, r * 0.42, Color(1, 1, 1, 0.92))
+		match String(b.kind):
+			"shard", "needle":
+				var dir2: Vector2 = b.vel.normalized()
+				var side: Vector2 = dir2.orthogonal()
+				var pts := PackedVector2Array([
+					b.pos + dir2 * r * 1.9, b.pos + side * r * 0.75,
+					b.pos - dir2 * r * 1.2, b.pos - side * r * 0.75,
+				])
+				draw_colored_polygon(pts, Color(ecol.r, ecol.g, ecol.b, 0.82))
+				draw_polyline(_closed(pts), Color(0.12, 0.08, 0.18, 0.55), 1.5, true)
+			"heavy", "plasma":
+				draw_arc(b.pos, r + 4.0, 0, TAU, 24, Color(ecol.r, ecol.g, ecol.b, 0.55), 2.0, true)
+			"mine":
+				for i in range(6):
+					var a2: float = TAU * float(i) / 6.0 + float(b.age)
+					draw_line(b.pos + Vector2(cos(a2), sin(a2)) * r,
+						b.pos + Vector2(cos(a2), sin(a2)) * (r + 5.0),
+						Color(1.0, 0.86, 0.45, 0.85), 1.5, true)
+			"wave":
+				var wdir: Vector2 = b.vel.normalized().orthogonal()
+				draw_circle(b.pos + wdir * sin(b.age * 8.0) * 7.0, r * 0.9,
+					Color(ecol.r, ecol.g, ecol.b, 0.55))
 
 
 func _draw_player() -> void:
 	var blink := player_invuln > 0.0 and int(player_invuln * 18.0) % 2 == 0
 	var alpha := 0.35 if blink else 1.0
-	var tint := Color.html(CFG.WEAPON_LINES["pulse"]["tint"])
-
-	_blob(player_pos, 36.0, Color(tint.r, tint.g, tint.b, 0.16 * alpha))
-	if not _draw_ship("player_pulse", player_pos, PLAYER_ART_RADIUS, player_bank, Color(1, 1, 1, alpha)):
+	var tint := Color.html(String(CFG.WEAPON_LINES[String(weapons.active_id)]["tint"]))
+	_draw_shadow(player_pos + Vector2(0, 15), PLAYER_ART_RADIUS * 0.92,
+		Color(0.10, 0.06, 0.16, 0.24 * alpha))
+	_blob(player_pos, PLAYER_ART_RADIUS * 1.65, Color(1.0, 0.96, 0.86, 0.26 * alpha), 9)
+	_blob(player_pos, PLAYER_ART_RADIUS * 1.12, Color(tint.r, tint.g, tint.b, 0.24 * alpha), 5)
+	_draw_engine_flame(alpha, tint)
+	var art := "player_" + String(weapons.active_id)
+	if not _draw_ship(art, player_pos, PLAYER_ART_RADIUS, player_bank, Color(1.05, 1.05, 1.02, alpha)):
 		_draw_player_fallback(alpha)
-
+	else:
+		# 白色剪影轻叠一层，把赛璐璐阴影提亮成奶油色，同时不盖住描边
+		_draw_ship(art + "_mask", player_pos, PLAYER_ART_RADIUS, player_bank,
+			Color(1.0, 0.99, 0.94, 0.28 * alpha))
 	if focus:
 		draw_circle(player_pos, CFG.PLAYER_HIT_R, Color(1, 1, 1, 0.95))
-		draw_arc(player_pos, CFG.PLAYER_GRAZE_R, 0, TAU, 40, Color(0.4, 0.95, 0.86, 0.45), 1.0, true)
+		draw_arc(player_pos, CFG.PLAYER_GRAZE_R, 0, TAU, 40, Color(0.4, 0.95, 0.86, 0.45), 1.2, true)
+		draw_arc(player_pos, CFG.PLAYER_GRAZE_R + 5.0, -PI * 0.5, PI * 0.5, 24,
+			Color(1.0, 0.55, 0.70, 0.35), 1.0, true)
+	if dash_t > 0.0:
+		draw_arc(player_pos, PLAYER_ART_RADIUS * 1.25, 0, TAU, 40,
+			Color(0.45, 1.0, 0.9, 0.55), 2.0, true)
+
+
+func _draw_engine_flame(alpha: float, tint: Color) -> void:
+	var flick := 0.86 + 0.20 * sin(Time.get_ticks_msec() * 0.045)
+	var boost := 1.6 if overdrive > 0.0 else 1.0
+	var ln := 34.0 * flick * boost
+	draw_set_transform(player_pos + Vector2(0, 30), player_bank, Vector2.ONE)
+	var outer := PackedVector2Array([Vector2(-9, 0), Vector2(0, ln), Vector2(9, 0)])
+	draw_colored_polygon(outer, Color(tint.r, tint.g, tint.b, 0.48 * alpha))
+	var inner := PackedVector2Array([Vector2(-4.5, 1), Vector2(0, ln * 0.64), Vector2(4.5, 1)])
+	draw_colored_polygon(inner, Color(1.0, 0.95, 0.78, 0.80 * alpha))
+	draw_circle(Vector2(0, 2), 5.0, Color(1.0, 0.98, 0.90, 0.55 * alpha))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 ## 缺精灵时的几何块回退（保证构建缺图也能跑）。
@@ -1187,24 +1333,47 @@ func _draw_enemies() -> void:
 		var base := Color.html(String(e.def.get("color", "#ff6f91")))
 		var accent := Color.html(String(e.def.get("accent", "#ffffff")))
 		var ang := e.turn + e.spin
+		var vis := e.size * 1.06
+		_draw_shadow(e.pos + Vector2(0, e.size * 0.42), e.size * 0.92,
+			Color(0.10, 0.06, 0.16, 0.20))
+		_blob(e.pos, e.size * 1.32, Color(1.0, 0.96, 0.88, 0.12), 5)
 		if e.elite:
-			draw_arc(e.pos, e.size * 1.35, 0, TAU, 32, Color(1.0, 0.82, 0.35, 0.5), 1.5, true)
-		if not _draw_ship("enemy_" + e.kind, e.pos, e.size, ang, Color.WHITE):
+			_blob(e.pos, e.size * 1.55, Color(1.0, 0.85, 0.45, 0.18), 6)
+			draw_arc(e.pos, e.size * 1.34, 0, TAU, 36, Color(1.0, 0.82, 0.35, 0.55), 2.0, true)
+			star_dot(e.pos + Vector2(e.size * 1.25, -e.size * 1.05), 5.0, Color(1, 0.9, 0.55))
+		if not _draw_ship("enemy_" + e.kind, e.pos, vis, ang, Color(1.04, 1.04, 1.02)):
 			draw_circle(e.pos, e.size * 1.45, Color(base.r, base.g, base.b, 0.12))
 			var pts := _enemy_shape(e)
 			draw_colored_polygon(pts, Color(base.r, base.g, base.b, 0.92))
 			draw_polyline(_closed(pts), accent, 1.2, true)
-		elif e.flash > 0.0:
-			# 命中闪白：同尺寸白剪影叠一层（归档里的 *_mask.png）
-			_draw_ship("enemy_" + e.kind + "_mask", e.pos, e.size, ang,
-				Color(1, 1, 1, clampf(e.flash / 0.08, 0.0, 1.0) * 0.85))
+		else:
+			_draw_ship("enemy_" + e.kind + "_mask", e.pos, vis, ang,
+				Color(1.0, 0.98, 0.93, 0.08))
+			if e.flash > 0.0:
+				_draw_ship("enemy_" + e.kind + "_mask", e.pos, vis, ang,
+					Color(1, 1, 1, clampf(e.flash / 0.08, 0.0, 1.0) * 0.85))
 		if e.max_hp > 20.0:
 			var w: float = e.size * 2.0
 			var ratio := clampf(e.hp / e.max_hp, 0.0, 1.0)
-			draw_rect(Rect2(e.pos.x - w * 0.5, e.pos.y - e.size - 8.0, w, 2.5),
-				Color(0.1, 0.1, 0.15, 0.8))
-			draw_rect(Rect2(e.pos.x - w * 0.5, e.pos.y - e.size - 8.0, w * ratio, 2.5),
-				accent)
+			var hr := Rect2(e.pos.x - w * 0.5, e.pos.y - e.size - 10.0, w, 4.0)
+			draw_rect(hr.grow(1.5), Color(0.12, 0.08, 0.18, 0.75))
+			draw_rect(Rect2(hr.position, Vector2(w * ratio, hr.size.y)), accent)
+			draw_rect(Rect2(hr.position, Vector2(w, 1.0)), Color(1, 1, 1, 0.35))
+
+
+func _draw_shadow(center: Vector2, radius: float, col: Color) -> void:
+	draw_set_transform(center, 0.0, Vector2(1.0, 0.62))
+	draw_circle(Vector2.ZERO, radius, col)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+func star_dot(c: Vector2, r: float, col: Color) -> void:
+	var pts := PackedVector2Array()
+	for i in range(8):
+		var a := -PI * 0.5 + PI * float(i) / 4.0
+		var rr := r if i % 2 == 0 else r * 0.35
+		pts.append(c + Vector2(cos(a), sin(a)) * rr)
+	draw_colored_polygon(pts, col)
 
 
 func _enemy_shape(e: Enemy) -> PackedVector2Array:
@@ -1234,55 +1403,6 @@ func _enemy_shape(e: Enemy) -> PackedVector2Array:
 			])
 
 
-func _draw_hud() -> void:
-	var font := ui_font
-	draw_rect(Rect2(0, 0, CFG.WIDTH, 88), Color(0.02, 0.04, 0.08, 0.72))
-	draw_string(font, Vector2(16, 30), "%d" % score,
-		HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color.html("#f3f8ff"))
-	draw_string(font, Vector2(16, 52), "GRAZE %d" % graze,
-		HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.html("#69f5dc"))
-	draw_string(font, Vector2(16, 72), "ZONE %02d" % zone,
-		HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.html("#8d9bbd"))
-	if multiplier > 1:
-		draw_string(font, Vector2(120, 30), "x%d" % multiplier,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color.html("#ffd27a"))
-	# 右上：生命 + 护盾（右缘留 60 给暂停键）
-	draw_string(font, Vector2(CFG.WIDTH - 260, 30), "HULL %d" % player_lives,
-		HORIZONTAL_ALIGNMENT_RIGHT, 184, 16, Color.html("#ffd27a"))
-	var sx := float(CFG.WIDTH) - 88.0
-	for i in range(CFG.MAX_SHIELDS):
-		var on := i < player_shields
-		draw_circle(Vector2(sx - i * 16.0, 48.0), 5.0 if on else 3.5,
-			Color(0.41, 0.96, 0.86, 0.95) if on else Color(0.25, 0.3, 0.4, 0.8))
-	draw_string(font, Vector2(CFG.WIDTH - 260, 72), CFG.DIFFICULTY[difficulty]["name"],
-		HORIZONTAL_ALIGNMENT_RIGHT, 184, 12, Color.html("#8fa4c9"))
-	# 底部：当前武器 + 蓄能条 + 星爆条
-	var w := weapons.active()
-	var wdef: Dictionary = CFG.WEAPON_LINES[w.id]
-	var wname := CFG.weapon_name(w.id, w.level)
-	var tint := Color.html(String(wdef["tint"]))
-	draw_string(font, Vector2(16, CFG.HEIGHT - 52), "%s LV%d" % [wname, w.level],
-		HORIZONTAL_ALIGNMENT_LEFT, -1, 15, tint)
-	draw_rect(Rect2(16, CFG.HEIGHT - 44, 150, 5), Color(1, 1, 1, 0.12))
-	draw_rect(Rect2(16, CFG.HEIGHT - 44, 150.0 * clampf(w.charge / 100.0, 0.0, 1.0), 5),
-		tint if not w.detuned else Color(1.0, 0.45, 0.35))
-	if w.detuned:
-		draw_string(font, Vector2(172, CFG.HEIGHT - 39), "失谐排气", HORIZONTAL_ALIGNMENT_LEFT, -1, 11,
-			Color(1.0, 0.45, 0.35))
-	if weapons.resonance > 0.0:
-		draw_string(font, Vector2(16, CFG.HEIGHT - 26), "共鸣 x%d" % int(weapons.resonance),
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color.html("#9b8cff"))
-
-
-func _draw_overlay(title: String, subtitle: String) -> void:
-	draw_rect(Rect2(0, 0, CFG.WIDTH, CFG.HEIGHT), Color(0, 0, 0, 0.55))
-	var font := ui_font
-	draw_string(font, Vector2(0, CFG.HEIGHT * 0.45), title,
-		HORIZONTAL_ALIGNMENT_CENTER, CFG.WIDTH, 34, Color.WHITE)
-	draw_string(font, Vector2(0, CFG.HEIGHT * 0.53), subtitle,
-		HORIZONTAL_ALIGNMENT_CENTER, CFG.WIDTH, 16, Color.html("#8fa4c9"))
-
-
 func _grade() -> String:
 	if score >= CFG.GRADE_S:
 		return "S"
@@ -1291,45 +1411,6 @@ func _grade() -> String:
 	if score >= CFG.GRADE_B:
 		return "B"
 	return "C"
-
-
-func _draw_game_over() -> void:
-	var font := ui_font
-	draw_rect(Rect2(0, 0, CFG.WIDTH, CFG.HEIGHT), Color(0.01, 0.02, 0.05, 0.78))
-	var card := Rect2(40, CFG.HEIGHT * 0.28, CFG.WIDTH - 80, 420)
-	draw_rect(card, Color(0.035, 0.055, 0.117, 0.96))
-	draw_rect(card, Color(0.63, 0.71, 1.0, 0.25), false, 1.0)
-	draw_string(font, Vector2(card.position.x, card.position.y + 34), "巡航终止",
-		HORIZONTAL_ALIGNMENT_CENTER, card.size.x, 28, Color.html("#ff6f91"))
-	draw_string(font, Vector2(card.position.x, card.position.y + 62), "信号消失在裂隙深处。",
-		HORIZONTAL_ALIGNMENT_CENTER, card.size.x, 12, Color.html("#8d9bbd"))
-	draw_string(font, Vector2(card.position.x + 28, card.position.y + 104), "SCORE",
-		HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.html("#5e6b8c"))
-	draw_string(font, Vector2(card.position.x + 28, card.position.y + 146), "%d" % score,
-		HORIZONTAL_ALIGNMENT_LEFT, -1, 34, Color.html("#f3f8ff"))
-	# 评级圆章
-	var gc := Vector2(card.position.x + card.size.x - 78, card.position.y + 124)
-	draw_circle(gc, 34.0, Color(0.41, 0.96, 0.86, 0.10))
-	draw_arc(gc, 34.0, 0, TAU, 40, Color(0.41, 0.96, 0.86, 0.6), 2.0, true)
-	draw_string(font, Vector2(gc.x - 34, gc.y + 13), _grade(), HORIZONTAL_ALIGNMENT_CENTER, 68, 32,
-		Color.html("#69f5dc"))
-	draw_string(font, Vector2(gc.x - 34, gc.y + 30), "RANK", HORIZONTAL_ALIGNMENT_CENTER, 68, 9,
-		Color.html("#8d9bbd"))
-	var rows := [
-		["最远星区", "%02d" % zone],
-		["擦弹", "%d" % graze],
-		["击坠", "%d" % total_kills],
-		["最高分", "%d" % best_score],
-	]
-	for i in range(rows.size()):
-		var y := card.position.y + 200.0 + i * 34.0
-		draw_rect(Rect2(card.position.x + 20, y - 18, card.size.x - 40, 30), Color(0.02, 0.031, 0.075, 0.6))
-		draw_string(font, Vector2(card.position.x + 34, y + 4), rows[i][0], HORIZONTAL_ALIGNMENT_LEFT, -1, 13,
-			Color.html("#5e6b8c"))
-		draw_string(font, Vector2(card.position.x + 34, y + 4), rows[i][1], HORIZONTAL_ALIGNMENT_RIGHT,
-			card.size.x - 68, 16, Color.html("#e8eeff"))
-	draw_string(font, Vector2(0, CFG.HEIGHT * 0.28 + 460), "点按重新出击  ·  R",
-		HORIZONTAL_ALIGNMENT_CENTER, CFG.WIDTH, 15, Color.html("#8fa4c9"))
 
 
 func _closed(points: PackedVector2Array) -> PackedVector2Array:
