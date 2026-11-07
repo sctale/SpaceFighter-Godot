@@ -1,0 +1,10 @@
+.godot/
+build/
+*.apk
+*.aab
+*.tmp
+
+keystore/
+reference/artgen/fontwork/*.ttc
+reference/artgen/**/*.png
+reference/docs/shots/
