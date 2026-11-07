@@ -103,28 +103,55 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 	skin.panel(ci, start_rect.grow(6.0 + pulse * 3.0), Color(skin.PINK.r, skin.PINK.g, skin.PINK.b, 0.10),
 		22.0, Color(0, 0, 0, 0), 0.0, false)
 	skin.button(ci, start_rect, "开始巡航", skin.PINK, false, 30, skin.WHITE)
-	skin.icon_chevron(ci, start_rect.position + Vector2(start_rect.size.x - 36, start_rect.size.y * 0.5),
-		13.0, Color(1, 1, 1, 0.85), 1.0)
+	# 斜向扫光：只在按钮内部移动，不越出圆角
+	var shimmer := fmod(t * 72.0, maxf(1.0, start_rect.size.x - 56.0))
+	for i in range(3):
+		var sx := start_rect.position.x + 28.0 + shimmer + i * 7.0
+		if sx < start_rect.end.x - 28.0:
+			ci.draw_line(Vector2(sx, start_rect.position.y + 11.0),
+				Vector2(sx - 24.0, start_rect.end.y - 11.0), Color(1, 1, 1, 0.09), 5.0)
+	skin.icon_chevron(ci,
+		start_rect.position + Vector2(start_rect.size.x - 36.0 + sin(t * 4.0) * 4.0,
+			start_rect.size.y * 0.5), 13.0, Color(1, 1, 1, 0.85), 1.0)
 
 	# 操作提示卡
 	var hint_rect := Rect2(cx - w * 0.5, hint_y - 86.0, w, 112.0)
 	skin.panel(ci, hint_rect, Color(1, 1, 1, 0.82), 16.0, skin.INK, 2.5, false)
 	skin.halftone(ci, Rect2(hint_rect.position + Vector2(10, 10), Vector2(42, 30)),
 		Color(skin.PINK.r, skin.PINK.g, skin.PINK.b, 0.16), 9.0)
-	var rows := [
-		[["拖动 / WASD", "移动"], ["Shift", "精准"], ["Tab", "换线"]],
-		[["空格", "冲刺"], ["X", "星爆"], ["P", "暂停"]],
-	]
-	for ri in range(2):
-		var yy := hint_rect.position.y + 33.0 + ri * 42.0
-		var xx := hint_rect.position.x + 26.0
-		for item in rows[ri]:
-			var key_w: float = 54.0 if item[0].length() <= 2 else 88.0
-			skin.keycap(ci, Rect2(xx, yy - 20.0, key_w, 26.0), item[0], 11)
-			skin.text(ci, Vector2(xx + key_w + 8.0, yy), item[1], 12, skin.INK_SOFT)
-			xx += key_w + 30.0
-	skin.text(ci, hint_rect.position + Vector2(26, hint_rect.size.y - 12),
-		"触屏：拖动移动，右下角技能", 11, Color(skin.INK_SOFT.r, skin.INK_SOFT.g, skin.INK_SOFT.b, 0.8))
+	if bool(main.is_mobile):
+		var items := [
+			[["拖动屏幕", "移动"], ["右下角", "冲刺 · 星爆 · 换线"]],
+			[["右上角", "暂停"], ["换线键", "切换武器"]],
+		]
+		for ri in range(2):
+			var yy := hint_rect.position.y + 36.0 + ri * 36.0
+			var xx := hint_rect.position.x + 24.0
+			for item in items[ri]:
+				var pill_w := 82.0 if item[0].length() >= 4 else 58.0
+				skin.keycap(ci, Rect2(xx, yy - 18.0, pill_w, 24.0), item[0], 10)
+				var label_w: float = skin.font.get_string_size(item[1],
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+				skin.text(ci, Vector2(xx + pill_w + 8.0, yy), item[1], 11, skin.INK_SOFT)
+				xx += pill_w + 20.0 + label_w
+		skin.text(ci, hint_rect.position + Vector2(24, hint_rect.size.y - 12),
+			"点按技能键，拖动屏幕控制机体", 11,
+			Color(skin.INK_SOFT.r, skin.INK_SOFT.g, skin.INK_SOFT.b, 0.8))
+	else:
+		var rows := [
+			[["拖动 / WASD", "移动"], ["Tab", "换线"]],
+			[["空格", "冲刺"], ["X", "星爆"], ["P", "暂停"]],
+		]
+		for ri in range(2):
+			var yy := hint_rect.position.y + 33.0 + ri * 42.0
+			var xx := hint_rect.position.x + 26.0
+			for item in rows[ri]:
+				var key_w: float = 54.0 if item[0].length() <= 2 else 88.0
+				skin.keycap(ci, Rect2(xx, yy - 20.0, key_w, 26.0), item[0], 11)
+				skin.text(ci, Vector2(xx + key_w + 8.0, yy), item[1], 12, skin.INK_SOFT)
+				xx += key_w + 30.0
+		skin.text(ci, hint_rect.position + Vector2(26, hint_rect.size.y - 12),
+			"支持触屏与键盘操作", 11, Color(skin.INK_SOFT.r, skin.INK_SOFT.g, skin.INK_SOFT.b, 0.8))
 
 	# 页脚
 	var ver := String(ProjectSettings.get_setting("application/config/version", "0.0.0"))

@@ -19,16 +19,23 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 
 	# 分数板
 	skin.panel(ci, score_r, Color(1, 1, 1, 0.93), 18.0, skin.INK, 3.0, true)
-	skin.text(ci, score_r.position + Vector2(16, 22), "S C O R E", 11, skin.INK_SOFT)
-	skin.text(ci, score_r.position + Vector2(16, 56), "%d" % int(main.score), 30, skin.INK)
+	skin.text(ci, score_r.position + Vector2(16, 22), "得分", 11, skin.INK_SOFT)
+	skin.text(ci, score_r.position + Vector2(16, 56),
+		"%d" % int(round(float(main.display_score))), 30, skin.INK)
 	skin.text(ci, score_r.position + Vector2(16, 68), "擦弹 %d" % int(main.graze), 10,
 		Color(skin.INK_SOFT.r, skin.INK_SOFT.g, skin.INK_SOFT.b, 0.85))
+	skin.text_right(ci, score_r.end.x - 14.0, score_r.position.y + 68.0,
+		"最高 %d" % int(main.best_score), 10,
+		Color(skin.INK_SOFT.r, skin.INK_SOFT.g, skin.INK_SOFT.b, 0.72))
 	var combo := int(main.multiplier)
 	if combo > 1:
-		var chip := Rect2(score_r.position.x + 116.0, score_r.position.y + 10.0, 74.0, 34.0)
+		var chip := Rect2(score_r.position.x + 116.0, score_r.position.y + 10.0, 74.0, 36.0)
 		skin.panel(ci, chip, skin.GOLD, 12.0, skin.INK, 2.5, false)
-		skin.text_center(ci, chip.position.x + chip.size.x * 0.5, chip.position.y + 25.0,
-			"×%d" % combo, 22, skin.INK, 0)
+		skin.text_center(ci, chip.position.x + chip.size.x * 0.5, chip.position.y + 24.0,
+			"×%d" % combo, 21, skin.INK, 0)
+		var k := clampf(float(main.combo_timer) / 2.8, 0.0, 1.0)
+		ci.draw_rect(Rect2(chip.position.x + 10.0, chip.end.y - 7.0,
+			(chip.size.x - 20.0) * k, 2.5), skin.INK)
 
 	# 船体板
 	skin.panel(ci, hull_r, Color(1, 1, 1, 0.93), 18.0, skin.INK, 3.0, true)
@@ -66,7 +73,7 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 			13, skin.INK, 0)
 		var bar_r := Rect2(bar_x, bar_y, bar_w, 18.0)
 		skin.panel(ci, bar_r, Color(0.15, 0.11, 0.20, 0.92), 9.0, skin.INK, 3.0, false)
-		var frac := clampf(float(boss.hp_frac()), 0.0, 1.0)
+		var frac := clampf(float(main.display_boss_hp), 0.0, 1.0)
 		if frac > 0.0:
 			var inner := Rect2(bar_r.position + Vector2(3, 3), Vector2((bar_r.size.x - 6.0) * frac, 12.0))
 			skin.panel(ci, inner, skin.PINK_DEEP, 6.0, skin.PINK_DEEP, 0.0, false)
@@ -88,7 +95,7 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 		ci.draw_circle(zone_r.position + Vector2(16, 13), 5.0, skin.CYAN)
 		ci.draw_arc(zone_r.position + Vector2(16, 13), 8.0, 0.2, 2.4, 16,
 			Color(1, 1, 1, 0.55), 1.5, true)
-		skin.text(ci, zone_r.position + Vector2(30, 18), "ZONE %02d" % int(main.zone), 11, skin.INK)
+		skin.text(ci, zone_r.position + Vector2(30, 18), "星区 %02d" % int(main.zone), 11, skin.INK)
 
 	# 武器板
 	var wp_r := Rect2(safe_left + 14.0, bottom - 86.0, 216.0, 86.0)
@@ -124,18 +131,15 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 			"超频 %.1fs" % float(main.overdrive), skin.GOLD)
 
 	# 右下角技能键
-	var nova_c := Vector2(vw - safe_right - 60.0, bottom - 58.0)
-	var dash_c := Vector2(vw - safe_right - 148.0, bottom - 46.0)
-	var swap_c := Vector2(vw - safe_right - 52.0, bottom - 150.0)
-	var focus_c := Vector2(vw - safe_right - 128.0, bottom - 138.0)
-	var nova_r := 38.0
-	var dash_r := 30.0
-	var swap_r := 27.0
-	var focus_r := 27.0
+	var nova_c := Vector2(vw - safe_right - 62.0, bottom - 60.0)
+	var dash_c := Vector2(vw - safe_right - 152.0, bottom - 46.0)
+	var swap_c := Vector2(vw - safe_right - 64.0, bottom - 148.0)
+	var nova_r := 42.0
+	var dash_r := 32.0
+	var swap_r := 30.0
 	rects["nova"] = Rect2(nova_c - Vector2(nova_r, nova_r), Vector2(nova_r * 2, nova_r * 2))
 	rects["dash"] = Rect2(dash_c - Vector2(dash_r, dash_r), Vector2(dash_r * 2, dash_r * 2))
 	rects["weapon"] = Rect2(swap_c - Vector2(swap_r, swap_r), Vector2(swap_r * 2, swap_r * 2))
-	rects["focus"] = Rect2(focus_c - Vector2(focus_r, focus_r), Vector2(focus_r * 2, focus_r * 2))
 	var nova_ready := float(main.nova) >= 100.0
 	action_button(ci, skin, nova_c, nova_r, skin.GOLD if nova_ready else Color("#F6E3B4"),
 		"burst", "星爆", "%d%%" % int(float(main.nova)), float(main.nova) / 100.0,
@@ -147,20 +151,7 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 	var swap_tint := wtint
 	action_button(ci, skin, swap_c, swap_r, swap_tint, "swap", "换线",
 		"L%d" % lv, 1.0, skin.INK_SOFT, pressed == "weapon", false)
-	action_button(ci, skin, focus_c, focus_r,
-		skin.VIOLET if bool(main.focus_locked) else Color("#E6DFF7"),
-		"focus", "精准", "ON" if bool(main.focus_locked) else "",
-		1.0 if bool(main.focus_locked) else 0.0, skin.VIOLET_DEEP,
-		pressed == "focus", bool(main.focus_locked))
 
-	# 大连击数字
-	if combo > 1 and not bool(main.game_over):
-		var cc := Vector2(score_r.end.x + 34.0, score_r.position.y + 152.0)
-		var pop := 1.0 + 0.12 * sin(t * 8.0) * clampf(float(main.combo_timer) / 2.8, 0.0, 1.0)
-		ci.draw_set_transform(cc, 0.0, Vector2(pop, pop))
-		skin.text_center(ci, 0, 18, "×%d" % combo, 30, skin.GOLD, 3)
-		skin.text_center(ci, 0, 34, "COMBO", 9, skin.INK, 0)
-		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	return rects
 
 
@@ -210,12 +201,10 @@ static func action_button(ci: CanvasItem, skin: UISkin, c: Vector2, r: float, fi
 		"swap":
 			skin.icon_burst(ci, icon_c, r * 0.38, icon_col, 4)
 			ci.draw_arc(icon_c, r * 0.52, -0.5, PI * 1.05, 24, icon_col, 2.0, true)
-		"focus":
-			skin.icon_crosshair(ci, icon_c, r * 0.46, icon_col)
-	skin.text_center(ci, cc.x, cc.y + r * 0.58, label, 12 if r < 30.0 else 14, icon_col, 0)
+	skin.text_center(ci, cc.x, cc.y + r * 0.58, label, 13 if r < 32.0 else 15, icon_col, 0)
 	if badge != "":
-		skin.text_center(ci, cc.x, cc.y + r * 0.58 + 12.0, badge, 8,
-			Color(icon_col.r, icon_col.g, icon_col.b, 0.75), 0)
+		skin.text_center(ci, cc.x, cc.y + r * 0.58 + 13.0, badge, 9,
+			Color(icon_col.r, icon_col.g, icon_col.b, 0.78), 0)
 	if ring > 0.0:
 		ci.draw_arc(cc, r + 7.0, -PI * 0.5, -PI * 0.5 + TAU * clampf(ring, 0.0, 1.0), 40,
 			ring_col, 3.0, true)

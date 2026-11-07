@@ -57,8 +57,7 @@ var player_invuln := 0.0
 var player_bank := 0.0
 var player_last_dir := 0.0
 var fire_timer := 0.0
-var focus := false
-var focus_locked := false
+
 
 # 武器与玩家生存/技能（迁移C）
 var weapons := WeaponSystem.new()
@@ -116,6 +115,7 @@ var safe_top := 0.0
 var safe_bottom := 0.0
 var safe_left := 0.0
 var safe_right := 0.0
+var is_mobile := false
 
 # 视觉层
 var backdrop: SpaceBackdrop
@@ -123,6 +123,9 @@ var ui: UIOverlay
 var fx: FXLayer
 var shake := 0.0
 var shake_t := 0.0
+# UI 显示用插值：分数滚动、Boss 血条平滑
+var display_score := 0.0
+var display_boss_hp := 1.0
 
 # 截图验收：`godot --path . -- -shot menu|play|boss`
 var _shot_mode := ""
@@ -135,8 +138,9 @@ func _ready() -> void:
 	randomize()
 	_update_viewport_layout()
 	get_viewport().size_changed.connect(_update_viewport_layout)
+	is_mobile = OS.has_feature("mobile")
 	player_pos = Vector2(view_size.x * 0.5, view_size.y - CFG.RESPAWN_INSET - safe_bottom)
-	if OS.has_feature("mobile"):
+	if is_mobile:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 	weapons.spawn = _player_spawn_bullet
 	sfx = Sfx.new()
@@ -316,7 +320,6 @@ func _process(delta: float) -> void:
 		shake_t = maxf(0.0, shake_t - delta)
 		if shake_t <= 0.0:
 			shake = 0.0
-	focus = Input.is_key_pressed(KEY_SHIFT) or focus_locked
 	player_invuln = maxf(0.0, player_invuln - delta)
 	_update_skills(delta)
 	_update_economy(delta)
@@ -361,7 +364,7 @@ func _update_player(delta: float) -> void:
 
 		if dir.length_squared() > 0.0:
 			dir = dir.normalized()
-			var speed := CFG.FOCUS_SPEED if focus else CFG.PLAYER_SPEED
+			var speed := CFG.PLAYER_SPEED
 			player_pos += dir * speed * delta
 			pointer_active = false
 			player_last_dir = dir.x
@@ -381,7 +384,6 @@ func _update_player(delta: float) -> void:
 func _update_player_fire(delta: float) -> void:
 	if _demo_no_fire:
 		return
-	weapons.precision = focus
 	weapons.overdrive = overdrive > 0.0
 	weapons.swap_idle = swap_idle
 	weapons.tick(delta)
@@ -1014,8 +1016,6 @@ func _handle_ui_action(action: String) -> bool:
 		"weapon":
 			if weapons.cycle_weapon():
 				swap_idle = 0.0
-		"focus":
-			focus_locked = not focus_locked
 		"resume":
 			paused = false
 		"restart", "retry":
@@ -1042,6 +1042,8 @@ func _to_menu() -> void:
 	paused = false
 	game_over = false
 	score = 0
+	display_score = 0.0
+	display_boss_hp = 1.0
 	graze = 0
 	combo = 0
 	multiplier = 1
@@ -1067,6 +1069,8 @@ func _reset_game() -> void:
 	player_bank = 0.0
 	fire_timer = 0.0
 	score = 0
+	display_score = 0.0
+	display_boss_hp = 1.0
 	graze = 0
 	game_over = false
 	paused = false
@@ -1092,7 +1096,6 @@ func _reset_game() -> void:
 	combo = 0
 	combo_timer = 0.0
 	multiplier = 1
-	focus_locked = false
 	boss = null
 	boss_pending = false
 	boss_cleared = false
@@ -1278,11 +1281,6 @@ func _draw_player() -> void:
 		# 白色剪影轻叠一层，把赛璐璐阴影提亮成奶油色，同时不盖住描边
 		_draw_ship(art + "_mask", player_pos, PLAYER_ART_RADIUS, player_bank,
 			Color(1.0, 0.99, 0.94, 0.28 * alpha))
-	if focus:
-		draw_circle(player_pos, CFG.PLAYER_HIT_R, Color(1, 1, 1, 0.95))
-		draw_arc(player_pos, CFG.PLAYER_GRAZE_R, 0, TAU, 40, Color(0.4, 0.95, 0.86, 0.45), 1.2, true)
-		draw_arc(player_pos, CFG.PLAYER_GRAZE_R + 5.0, -PI * 0.5, PI * 0.5, 24,
-			Color(1.0, 0.55, 0.70, 0.35), 1.0, true)
 	if dash_t > 0.0:
 		draw_arc(player_pos, PLAYER_ART_RADIUS * 1.25, 0, TAU, 40,
 			Color(0.45, 1.0, 0.9, 0.55), 2.0, true)

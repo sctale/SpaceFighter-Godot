@@ -24,7 +24,6 @@ var lines: Array = []
 var active_id := "pulse"
 var resonance := 0.0
 var fire_cooldown := 0.0
-var precision := false
 var overdrive := false        # 由玩家超频状态注入
 var swap_idle := 0.0          # 距上次换线的停留时间（玩家维护）
 var _res_timer := 0.0
@@ -154,9 +153,6 @@ func _emit(origin: Vector2, dx: float, dy: float, vx: float, vy: float,
 		return
 	var pos := origin + Vector2(dx, dy)
 	var vel := Vector2(vx, vy)
-	if precision:
-		pos.x = origin.x + dx * CFG.FOCUS_PATTERN_COMPRESS
-		vel.x *= CFG.FOCUS_LATERAL_MUL
 	spawn.call(pos, vel, {
 		"damage": dmg, "radius": radius, "tint": tint, "kind": kind, "life": life,
 		"pierce": pierce, "homing": homing, "boss_bonus": boss_bonus,

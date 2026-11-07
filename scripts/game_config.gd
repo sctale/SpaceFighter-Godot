@@ -25,7 +25,6 @@ static func set_safe(top: float, bottom: float, left: float, right: float) -> vo
 const PLAYER_HIT_R := 4.6
 const PLAYER_GRAZE_R := 28.0
 const PLAYER_SPEED := 440.0
-const FOCUS_SPEED := 185.0
 const PLAYER_MIN_Y_RATIO := 0.18
 const PLAYER_BOTTOM_MARGIN := 104.0
 
@@ -245,8 +244,6 @@ const SWARM_DAMAGE := [2.0, 2.0, 2.0, 3.0, 3.0]
 const SWARM_HOMING := 1.45
 const SWARM_TURN_RATE := 4.6
 const SWARM_LOCK_DELAY := 0.11
-const FOCUS_PATTERN_COMPRESS := 0.42
-const FOCUS_LATERAL_MUL := 0.2
 const LINE_ALIASES := [
 	["脉冲炮", "双联脉冲", "三叉星流", "四象阵列", "星瀑"],
 	["棱镜", "双棱", "棱镜矩阵", "裂光", "终焉棱镜"],

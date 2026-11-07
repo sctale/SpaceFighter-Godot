@@ -161,15 +161,6 @@ func icon_chevron(ci: CanvasItem, c: Vector2, r: float, color: Color, dir := 1.0
 	ci.draw_colored_polygon(pts, color)
 
 
-func icon_crosshair(ci: CanvasItem, c: Vector2, r: float, color: Color) -> void:
-	ci.draw_arc(c, r * 0.62, 0, TAU, 24, color, 2.0, true)
-	ci.draw_line(c + Vector2(-r, 0), c + Vector2(-r * 0.35, 0), color, 2.0)
-	ci.draw_line(c + Vector2(r * 0.35, 0), c + Vector2(r, 0), color, 2.0)
-	ci.draw_line(c + Vector2(0, -r), c + Vector2(0, -r * 0.35), color, 2.0)
-	ci.draw_line(c + Vector2(0, r * 0.35), c + Vector2(0, r), color, 2.0)
-	ci.draw_circle(c, r * 0.14, color)
-
-
 func icon_crossed(ci: CanvasItem, c: Vector2, r: float, color: Color) -> void:
 	ci.draw_line(c + Vector2(-r * 0.75, -r * 0.75), c + Vector2(r * 0.75, r * 0.75), color, r * 0.20)
 	ci.draw_line(c + Vector2(r * 0.75, -r * 0.75), c + Vector2(-r * 0.75, r * 0.75), color, r * 0.20)

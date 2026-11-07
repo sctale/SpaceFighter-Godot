@@ -25,6 +25,10 @@ var sky_mat: ShaderMaterial
 var grad_rect: TextureRect
 var grad_tex: GradientTexture2D
 var grad: Gradient
+var planet_rect: ColorRect
+var planet_mat: ShaderMaterial
+var moon_rect: ColorRect
+var moon_mat: ShaderMaterial
 var stars: Array = []
 var use_shader := true
 
@@ -70,6 +74,25 @@ func _ready() -> void:
 		grad_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		grad_rect.show_behind_parent = true
 		add_child(grad_rect)
+	# 赛璐璐星球 / 月面：作为子节点画在天空之后、星层/行星环之前
+	planet_rect = ColorRect.new()
+	planet_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	planet_rect.show_behind_parent = true
+	planet_rect.visible = false
+	planet_mat = ShaderMaterial.new()
+	planet_mat.shader = load("res://shaders/planet_orb.gdshader")
+	planet_rect.material = planet_mat
+	add_child(planet_rect)
+	moon_rect = ColorRect.new()
+	moon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	moon_rect.show_behind_parent = true
+	moon_rect.visible = false
+	moon_mat = ShaderMaterial.new()
+	moon_mat.shader = load("res://shaders/planet_orb.gdshader")
+	moon_mat.set_shader_parameter("bands", 3.0)
+	moon_mat.set_shader_parameter("band_strength", 0.10)
+	moon_rect.material = moon_mat
+	add_child(moon_rect)
 	_init_stars()
 	_resize()
 	_apply_palette(0, true)
@@ -84,6 +107,14 @@ func _resize() -> void:
 	if grad_rect != null:
 		grad_rect.position = Vector2.ZERO
 		grad_rect.size = view_size
+	if planet_rect != null:
+		var pr := minf(view_size.x * 0.19, 108.0)
+		planet_rect.size = Vector2(pr * 2.0, pr * 2.0)
+		planet_rect.position = Vector2(view_size.x * 0.88, view_size.y * 0.105) - Vector2(pr, pr)
+	if moon_rect != null:
+		var mr := minf(view_size.x * 0.068, 34.0)
+		moon_rect.size = Vector2(mr * 2.0, mr * 2.0)
+		moon_rect.position = Vector2(view_size.x * 0.10, view_size.y * 0.205) - Vector2(mr, mr)
 	queue_redraw()
 
 
@@ -118,6 +149,12 @@ func _process(delta: float) -> void:
 		sky_mat.set_shader_parameter("game_dim", clampf((1.0 - _dim) / 0.26, 0.0, 1.0))
 	if grad_rect != null:
 		grad_rect.modulate = Color(_dim * 0.98, _dim, _dim * 1.06, 1.0)
+	if planet_rect != null:
+		planet_rect.visible = menu
+		planet_rect.modulate = Color(1.0, 1.0, 1.0, 1.0) if menu else Color(1.0, 1.0, 1.0, 0.0)
+	if moon_rect != null:
+		moon_rect.visible = menu
+		moon_rect.modulate = Color(1.0, 1.0, 1.0, 1.0) if menu else Color(1.0, 1.0, 1.0, 0.0)
 	_scroll += delta * speed * 0.06
 	for s in stars:
 		s["v"] = float(s["v"]) + delta * speed * float(s["depth"]) * 0.00045
@@ -160,6 +197,20 @@ func _upload_colors() -> void:
 	sky_mat.set_shader_parameter("glow_color", _colors["glow"])
 	sky_mat.set_shader_parameter("scroll", _scroll)
 	sky_mat.set_shader_parameter("time_scale", 1.0)
+	if planet_mat != null:
+		planet_mat.set_shader_parameter("light_col", Color(_colors["glow"]).lerp(Color.WHITE, 0.32))
+		planet_mat.set_shader_parameter("mid_col", Color(_colors["neb_b"]).lerp(Color(_colors["bottom"]), 0.28))
+		planet_mat.set_shader_parameter("dark_col", Color(_colors["mid"]).darkened(0.38))
+		planet_mat.set_shader_parameter("band_col", Color(_colors["glow"]).lerp(Color.WHITE, 0.55))
+		planet_mat.set_shader_parameter("rim_col", Color(_colors["glow"]).lerp(Color.WHITE, 0.65))
+		planet_mat.set_shader_parameter("ink_col", Color("#2B2338"))
+	if moon_mat != null:
+		moon_mat.set_shader_parameter("light_col", Color(_colors["neb_a"]).lerp(Color.WHITE, 0.42))
+		moon_mat.set_shader_parameter("mid_col", Color(_colors["neb_a"]).lerp(Color.WHITE, 0.12))
+		moon_mat.set_shader_parameter("dark_col", Color(_colors["neb_a"]).darkened(0.30))
+		moon_mat.set_shader_parameter("band_col", Color.WHITE)
+		moon_mat.set_shader_parameter("rim_col", Color.WHITE)
+		moon_mat.set_shader_parameter("ink_col", Color("#2B2338"))
 
 
 func _draw() -> void:
@@ -173,8 +224,7 @@ func _draw() -> void:
 	else:
 		_draw_stars()
 	if menu:
-		_draw_planet(Vector2(view_size.x * 0.88, view_size.y * 0.105), minf(view_size.x * 0.19, 108.0), 0.22)
-		_draw_moon(Vector2(view_size.x * 0.10, view_size.y * 0.205), minf(view_size.x * 0.068, 34.0))
+		_draw_planet_ring(Vector2(view_size.x * 0.88, view_size.y * 0.105), minf(view_size.x * 0.19, 108.0), 0.22)
 
 
 func _draw_gradient_fallback(menu: bool) -> void:
@@ -210,57 +260,15 @@ func _draw_stars() -> void:
 			draw_circle(pos, r, col)
 
 
-func _draw_planet(center: Vector2, radius: float, tilt: float) -> void:
+func _draw_planet_ring(center: Vector2, radius: float, tilt: float) -> void:
 	var base := Color(_colors["neb_b"]).lerp(Color(_colors["bottom"]), 0.30)
-	var shadow := Color(_colors["mid"]).darkened(0.30)
 	var rim := Color(_colors["glow"]).lerp(Color.WHITE, 0.55)
-	# 柔光 + 后方半环
-	glow_blob(center, radius * 1.55, Color(rim.r, rim.g, rim.b, 0.18), 8)
+	# 整圈淡环 + 下半圈高亮，形成土星环的前后层次
 	draw_set_transform(center, tilt, Vector2(1.0, 0.26))
-	draw_arc(Vector2.ZERO, radius * 1.45, PI * 0.10, PI * 0.90, 40,
-		Color(base.r, base.g, base.b, 0.28), maxf(2.0, radius * 0.028), true)
+	draw_arc(Vector2.ZERO, radius * 1.46, 0, TAU, 64,
+		Color(base.r, base.g, base.b, 0.34), maxf(2.0, radius * 0.030), true)
+	draw_arc(Vector2.ZERO, radius * 1.56, 0, TAU, 64,
+		Color(rim.r, rim.g, rim.b, 0.18), maxf(1.5, radius * 0.012), true)
+	draw_arc(Vector2.ZERO, radius * 1.46, PI * 1.06, PI * 1.94, 42,
+		Color(base.r, base.g, base.b, 0.82), maxf(2.0, radius * 0.042), true)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	# 球体 + 纬向云带
-	draw_circle(center, radius, base)
-	draw_set_transform(center, 0.0, Vector2(1.0, 0.28))
-	for i in range(3):
-		var yy := -radius * 0.34 + i * radius * 0.26
-		var rr := radius * (0.92 - i * 0.08)
-		draw_arc(Vector2(0, yy), rr, 0.0, TAU, 48, Color(1, 1, 1, 0.10),
-			maxf(2.0, radius * 0.07), true)
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	# 硬边半圆阴影：动画赛璐璐的大色块
-	var shadow_dir := Vector2(-0.30, 0.95).normalized()
-	var start := shadow_dir.angle() - PI * 0.5
-	var pts := PackedVector2Array()
-	for i in range(33):
-		var a := start + PI * float(i) / 32.0
-		pts.append(center + Vector2(cos(a), sin(a)) * radius * 0.985)
-	draw_colored_polygon(pts, Color(shadow.r, shadow.g, shadow.b, 0.72))
-	# 亮侧边缘 + 前后半环
-	draw_arc(center, radius * 0.98, PI * 0.98, PI * 1.72, 40,
-		Color(rim.r, rim.g, rim.b, 0.55), maxf(1.5, radius * 0.022), true)
-	draw_set_transform(center, tilt, Vector2(1.0, 0.26))
-	draw_arc(Vector2.ZERO, radius * 1.45, PI * 1.08, PI * 1.92, 40,
-		Color(base.r, base.g, base.b, 0.72), maxf(2.0, radius * 0.032), true)
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-
-
-func _draw_moon(center: Vector2, radius: float) -> void:
-	var c := Color(_colors["neb_a"]).lerp(Color.WHITE, 0.38)
-	var sh := c.darkened(0.26)
-	glow_blob(center, radius * 1.6, Color(c.r, c.g, c.b, 0.16), 6)
-	draw_circle(center, radius, c)
-	var start := 0.35
-	var pts := PackedVector2Array()
-	for i in range(25):
-		var a := start + PI * float(i) / 24.0
-		pts.append(center + Vector2(cos(a), sin(a)) * radius * 0.97)
-	draw_colored_polygon(pts, Color(sh.r, sh.g, sh.b, 0.62))
-	draw_arc(center, radius * 0.95, PI * 1.0, PI * 1.7, 24, Color(1, 1, 1, 0.42), 1.5, true)
-
-
-func glow_blob(center: Vector2, radius: float, col: Color, layers: int) -> void:
-	for i in range(layers, 0, -1):
-		var t := float(i) / float(layers)
-		draw_circle(center, radius * t, Color(col.r, col.g, col.b, col.a / float(layers)))

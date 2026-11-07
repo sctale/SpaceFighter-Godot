@@ -1,7 +1,24 @@
-# Space Fighter — Godot 4.7.2 / v1.1.0
+# Space Fighter — Godot 4.7.2 / v1.1.1
 
 Migration of the retired Unity port, using `reference/web/www` (the original
 540x960 Canvas game) as the gameplay and numeric source of truth.
+
+## v1.1.1 two-round polish
+
+- **Cel-shaded planet/moon shader**: hard-banded spheres with ink edges and a
+  ring, replacing the flat half-disc background orbs.
+- **Mobile-first hints**: Android/phone menu now shows touch instructions
+  (拖动屏幕 / 右下角技能 / 右上角暂停 / 换线键) instead of keyboard keycaps.
+- **HUD Chinese pass**: 得分 / 最高 / 擦弹 / 星区; removed mixed English labels.
+- **Three-button skill cluster**: 星爆 / 冲刺 / 换线; the 精准 slow-aim button
+  and Shift focus mode were removed entirely.
+- **Motion polish**: menu↔game fade, pause/results card slide-in, score count-up,
+  smooth boss HP bar, start-button shimmer and arrow bounce.
+- Android versionName `1.1.1` / code `11`; numeric gate `checks=75`.
+
+![v1.1.1 menu](docs/shots/ui_v111_menu.png)
+![v1.1.1 action](docs/shots/ui_v111_action.png)
+![v1.1.1 tall phone](docs/shots/android_v111_tall_play.png)
 
 ## v1.1.0 visual reset
 
@@ -47,17 +64,16 @@ Migration of the retired Unity port, using `reference/web/www` (the original
 - [x] **App icon (v1.1.0)**: cel-shaded 3/4 hero on a pastel nebula
       (`assets/icons/`), wired into the project icon, Windows exe icon and
       Android adaptive launcher icon.
-- [x] Windows release export: `build/windows/SpaceFighter.exe` (v1.1.0.0)
-- [x] Android APK: `SpaceFighter-Godot-v1.1.0.apk` (41 MB, portrait, target SDK
+- [x] Windows release export: `build/windows/SpaceFighter.exe` (v1.1.1.0)
+- [x] Android APK: `SpaceFighter-Godot-v1.1.1.apk` (42 MB, portrait, target SDK
       36, release-signed with the project keystore)
 - [x] On-device install verified: Android 36 emulator with hardware GPU
-      (1080x1920 and 1080x2400), versionName 1.1.0 / code 10, no black bars,
+      (1080x1920 and 1080x2400), versionName 1.1.1 / code 11, no black bars,
       touch controls work, 0 Godot script/shader errors
 - [x] Release signing: project keystore (CN=Space Fighter, O=sctale), v2/v3 verified
       (`apksigner verify --verbose`)
 - [x] Touch controls: 星爆 / 冲刺 / 换线 rings + top-right pause + menu buttons
-- [x] Touch controls: focus toggle (精准) + difficulty chips in the menu
-- [x] Bundled Noto CJK subset (`assets/fonts/AuroraCJK.ttf`, 267 KB, 938 mapped glyphs)
+- [x] Bundled Noto CJK subset (`assets/fonts/AuroraCJK.ttf`, 274 KB, 957 mapped glyphs)
 - [x] Numeric parity: enemy hit radius `size * 0.78`, enemy bullet speed
       `min(300, 150×(1+tier×0.14))` (web `entities.js:1263,1393`)
 - [x] All 12 enemy behaviours, elite affixes, 6 movement / 9 fire modes,
@@ -80,8 +96,8 @@ Migration of the retired Unity port, using `reference/web/www` (the original
 godot --path D:\V-Coding\space-fighter-godot
 ```
 
-Controls: WASD/arrows move, Shift focus, mouse/touch drag, 1/2/3 difficulty,
-P/Escape pause, R restart.
+Controls: WASD/arrows move, mouse/touch drag, Tab switch weapon, Space dash,
+X nova, 1/2/3 difficulty, P/Escape pause, R restart.
 
 ## Numeric gate
 
@@ -90,7 +106,7 @@ godot --headless --path D:\V-Coding\space-fighter-godot \
   --script res://tools/verify_numbers.gd
 ```
 
-Expected: `VERIFY_OK checks=76` and exit code 0.
+Expected: `VERIFY_OK checks=75` and exit code 0.
 
 ## Export
 

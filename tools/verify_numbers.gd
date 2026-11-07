@@ -15,7 +15,6 @@ func _initialize() -> void:
 	_eq(failures, "PLAYER_HIT_R", CFG.PLAYER_HIT_R, 4.6)
 	_eq(failures, "PLAYER_GRAZE_R", CFG.PLAYER_GRAZE_R, 28.0)
 	_eq(failures, "PLAYER_SPEED", CFG.PLAYER_SPEED, 440.0)
-	_eq(failures, "FOCUS_SPEED", CFG.FOCUS_SPEED, 185.0)
 	_eq(failures, "RESONANCE_MAX", CFG.RESONANCE_MAX, 5)
 
 	_eq(failures, "pulse.speed", CFG.WEAPON_LINES["pulse"]["speed"], 1250.0)

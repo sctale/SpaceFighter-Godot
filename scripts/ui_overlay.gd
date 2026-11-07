@@ -23,6 +23,9 @@ var _banner_zone := 1
 var _warning_t := 0.0
 var _warning_shown := false
 var _last_zone := 1
+var _fade := 1.0
+var _last_state := ""
+var _modal_t := 0.0
 
 
 func _ready() -> void:
@@ -34,6 +37,22 @@ func _process(delta: float) -> void:
 	pressed_t = maxf(0.0, pressed_t - delta)
 	if main == null:
 		return
+	var state := _state()
+	if state != _last_state:
+		if _last_state != "" and (state == "menu" or _last_state == "menu"):
+			_fade = 1.0
+		_modal_t = 0.0
+		_last_state = state
+	_fade = maxf(0.0, _fade - delta * 3.4)
+	if state == "paused" or state == "over":
+		_modal_t += delta
+	main.display_score = lerpf(float(main.display_score), float(main.score),
+		1.0 - exp(-7.0 * delta))
+	if main.boss != null:
+		main.display_boss_hp = lerpf(float(main.display_boss_hp), float(main.boss.hp_frac()),
+			1.0 - exp(-6.0 * delta))
+	else:
+		main.display_boss_hp = 1.0
 	if not bool(main.in_menu):
 		if int(main.zone) != _last_zone:
 			_last_zone = int(main.zone)
@@ -50,6 +69,26 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
+func _state() -> String:
+	if bool(main.in_menu):
+		return "menu"
+	if bool(main.game_over):
+		return "over"
+	if bool(main.paused):
+		return "paused"
+	return "game"
+
+
+func _ease_out(t: float) -> float:
+	var x := clampf(t, 0.0, 1.0)
+	return 1.0 - pow(1.0 - x, 3.0)
+
+
+func _draw_fade(vw: float, vh: float) -> void:
+	if _fade > 0.0:
+		draw_rect(Rect2(0, 0, vw, vh), Color(0.10, 0.07, 0.16, _fade * 0.82))
+
+
 func _draw() -> void:
 	if main == null:
 		return
@@ -63,6 +102,7 @@ func _draw() -> void:
 	var flash := pressed if pressed_t > 0.0 else ""
 	if bool(main.in_menu):
 		menu_buttons = UIMenu.draw(self, skin, main, vw, vh, st, sb, _t)
+		_draw_fade(vw, vh)
 		return
 	game_buttons = UIHud.draw(self, skin, main, vw, vh, st, sb, sl, sr, _t, flash)
 	if bool(main.paused):
@@ -71,6 +111,7 @@ func _draw() -> void:
 		_draw_results(vw, vh, st, sb, flash)
 	else:
 		_draw_banners(vw, vh, st)
+	_draw_fade(vw, vh)
 
 
 func press(p: Vector2) -> String:
@@ -108,10 +149,11 @@ func _flash_action(action: String) -> String:
 
 
 func _draw_pause(vw: float, vh: float, st: float, sb: float, flash: String) -> void:
-	draw_rect(Rect2(0, 0, vw, vh), Color(0.10, 0.07, 0.16, 0.55))
+	var k := _ease_out(_modal_t / 0.32)
+	draw_rect(Rect2(0, 0, vw, vh), Color(0.10, 0.07, 0.16, 0.55 * k))
 	var w := minf(vw - 56.0, 440.0)
 	var h := minf(vh - st - sb - 80.0, 470.0)
-	var card := Rect2((vw - w) * 0.5, (vh - h) * 0.5, w, h)
+	var card := Rect2((vw - w) * 0.5, (vh - h) * 0.5 + (1.0 - k) * 30.0, w, h)
 	skin.panel(self, card, skin.PAPER, 26.0, skin.INK, 4.0, true)
 	skin.halftone(self, Rect2(card.position + Vector2(16, 16), Vector2(70, 46)),
 		Color(skin.PINK.r, skin.PINK.g, skin.PINK.b, 0.15), 12.0)
@@ -140,14 +182,16 @@ func _draw_pause(vw: float, vh: float, st: float, sb: float, flash: String) -> v
 	skin.button(self, pause_buttons["resume"], "继续巡航", skin.PINK, flash == "resume", 24, skin.WHITE)
 	skin.button(self, pause_buttons["restart"], "重新出击", skin.CYAN, flash == "restart", 24, skin.INK)
 	skin.button(self, pause_buttons["menu"], "返回主菜单", skin.PAPER, flash == "menu", 22, skin.INK)
-	skin.text_center(self, vw * 0.5, card.end.y - 20.0, "也可以按 P / Esc 继续", 11, skin.INK_SOFT, 0)
+	skin.text_center(self, vw * 0.5, card.end.y - 20.0,
+		"点按按钮继续" if bool(main.is_mobile) else "也可以按 P / Esc 继续", 11, skin.INK_SOFT, 0)
 
 
 func _draw_results(vw: float, vh: float, st: float, sb: float, flash: String) -> void:
-	draw_rect(Rect2(0, 0, vw, vh), Color(0.10, 0.07, 0.16, 0.62))
+	var k := _ease_out(_modal_t / 0.40)
+	draw_rect(Rect2(0, 0, vw, vh), Color(0.10, 0.07, 0.16, 0.62 * k))
 	var w := minf(vw - 48.0, 470.0)
 	var h := minf(vh - st - sb - 48.0, 640.0)
-	var card := Rect2((vw - w) * 0.5, (vh - h) * 0.5, w, h)
+	var card := Rect2((vw - w) * 0.5, (vh - h) * 0.5 + (1.0 - k) * 40.0, w, h)
 	skin.panel(self, card, skin.PAPER, 26.0, skin.INK, 4.0, true)
 	var grade: String = String(main._grade())
 	var tint := skin.GOLD
@@ -165,13 +209,13 @@ func _draw_results(vw: float, vh: float, st: float, sb: float, flash: String) ->
 	skin.icon_burst(self, gc, 56.0, Color(tint.r, tint.g, tint.b, 0.18), 10)
 	skin.icon_burst(self, gc, 47.0, tint, 10)
 	skin.text_center(self, gc.x, gc.y + 20.0, grade, 48, skin.INK, 0)
-	skin.text_center(self, gc.x, gc.y + 44.0, "RANK", 9, skin.PAPER, 0)
+	skin.text_center(self, gc.x, gc.y + 44.0, "评级", 9, skin.PAPER, 0)
 	skin.text_center(self, vw * 0.5, card.position.y + 228.0, "%d" % int(main.score), 44, skin.INK, 0)
-	skin.text_center(self, vw * 0.5, card.position.y + 248.0, "SCORE", 10, skin.INK_SOFT, 0)
+	skin.text_center(self, vw * 0.5, card.position.y + 248.0, "得分", 10, skin.INK_SOFT, 0)
 	if int(main.score) >= int(main.best_score) and int(main.score) > 0:
 		var rr := Rect2(vw * 0.5 - 74.0, card.position.y + 258.0, 148.0, 24.0)
 		skin.panel(self, rr, skin.GOLD, 8.0, skin.INK, 2.0, false)
-		skin.text_center(self, vw * 0.5, rr.position.y + 17.0, "NEW RECORD", 11, skin.INK, 0)
+		skin.text_center(self, vw * 0.5, rr.position.y + 17.0, "新纪录", 11, skin.INK, 0)
 	var rows := [
 		["最远星区", "%02d  %s" % [int(main.zone), UIMenu.ZONE_NAMES[clampi(int(main.zone) - 1, 0, 9)]]],
 		["击坠", "%d" % int(main.total_kills)],
