@@ -229,6 +229,51 @@ const NOVA_BOSS_DAMAGE_FLAT := 30.0
 const NOVA_SCORE_PER_CLEARED_BULLET := 10
 const CLEAR_SCORE_PER_BULLET := 4
 
+# ---- 裂隙碎片（v1.2.0 擦弹风险回报）----
+const MOTE_SCORE := 12
+const MOTE_NOVA := 3.0
+const MOTE_LIFE := 4.2
+const MOTE_MAX := 30
+const MOTE_MAGNET_RADIUS := 118.0
+const MOTE_MAGNET_SPEED := 210.0
+const MOTE_COLLECT_RADIUS := 22.0
+const MOTE_COMBO_EXTEND := 0.65
+
+# ---- 星区突破三选一（v1.2.0 局内 build）----
+const UPGRADE_CARD_COUNT := 3
+const UPGRADE_MAX_HULL := 4
+const UPGRADE_DAMAGE_STEP := 0.12
+const UPGRADE_DRONE_STEP := 0.25
+const UPGRADE_NOVA_STEP := 0.25
+const UPGRADE_OVERDRIVE_STEP := 1.5
+const UPGRADE_SPEED_STEP := 0.08
+const UPGRADE_CRATE_STEP := 0.25
+const UPGRADE_BREAK_STEP := 0.25
+const UPGRADE_RIFT_NOVA_STEP := 0.5
+const UPGRADE_RIFT_SCORE_STEP := 0.3
+const UPGRADE_POOL := [
+	{"id": "damage", "name": "火力校准", "desc": "所有武器伤害 +12%",
+	 "tint": "#FF8FB1", "icon": "burst"},
+	{"id": "drone", "name": "僚机扩编", "desc": "僚机射速 +25%",
+	 "tint": "#57E6D8", "icon": "ship"},
+	{"id": "hull", "name": "船体强化", "desc": "最大船体 +1，并修复 1 格",
+	 "tint": "#FFC554", "icon": "heart"},
+	{"id": "shield", "name": "护盾矩阵", "desc": "立即获得 1 层护盾",
+	 "tint": "#6FA8FF", "icon": "shield"},
+	{"id": "nova", "name": "星爆核心", "desc": "星爆充能 +25%",
+	 "tint": "#FFC554", "icon": "burst"},
+	{"id": "overdrive", "name": "超频延长", "desc": "星爆超频 +1.5 秒",
+	 "tint": "#A78BFA", "icon": "star"},
+	{"id": "speed", "name": "流星推进", "desc": "移动速度 +8%",
+	 "tint": "#57E6D8", "icon": "chevron"},
+	{"id": "crate", "name": "战利品雷达", "desc": "补给箱出现 +25%",
+	 "tint": "#FF8FB1", "icon": "star"},
+	{"id": "break", "name": "破防弹头", "desc": "Boss 伤害 +25%",
+	 "tint": "#FF6B7A", "icon": "burst"},
+	{"id": "rift", "name": "裂隙共振", "desc": "裂隙碎片充能 +50%，得分 +30%",
+	 "tint": "#A78BFA", "icon": "burst4"},
+]
+
 # ---- 武器市场经济（entities.js:336-362,863-931）----
 const RESONANCE_PER_STACK_DAMAGE := 0.08
 const RESONANCE_PER_STACK_CHARGE := 0.06

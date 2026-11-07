@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.2.0 — 2026-11-07
+
+**feat / gameplay innovation**
+
+- 对标 Touhou / DoDonPachi / 雷电 / Sky Force / Archero / Vampire Survivors /
+  Hades，补上两个玩法缺口：擦弹没有机械回报，星区之间没有 build 选择。
+- 新增**裂隙碎片**：每次擦弹在子弹位置掉落磁吸碎片，拾取后加得分、延长连击、
+  充能星爆并累计 HUD `裂隙` 计数；擦弹从隐藏统计变成风险回报循环。
+- 新增**星区突破**：每次击破 Boss 后冻结战斗，从 10 项强化中随机三选一：
+  伤害、僚机射速、最大船体、护盾、星爆充能、超频时长、移速、补给率、
+  Boss 伤害、裂隙共振。强化可跨 10 个星区叠加，改变整局 build。
+- 新增模态卡片 UI（三选一，支持触屏点按与键盘 1/2/3），不增加常驻触屏按钮。
+- 新 HUD：`裂隙` 计数 chip；船体图标随最大船体升级扩展；Boss 死亡清屏后进入
+  突破选择，避免残留弹幕偷袭。
+- Android：versionName `1.2.0` / versionCode `12`；Windows FileVersion `1.2.0.0`；
+  数值 gate `VERIFY_OK checks=80`。
+- 字体子集重新生成（280 KB，971 mapped glyphs）。
+
 ## 1.1.1 — 2026-11-07
 
 **polish / two visual optimization rounds**

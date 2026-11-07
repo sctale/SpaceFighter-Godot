@@ -88,6 +88,12 @@ var drones: Array = []
 
 var score := 0
 var graze := 0
+# v1.2.0 裂隙碎片 / 星区突破
+var rift := 0
+var motes: Array = []
+var upgrades := {}
+var upgrade_pending := false
+var upgrade_options: Array = []
 var game_over := false
 var paused := false
 var game_over_time := 0.0
@@ -176,6 +182,20 @@ func _ready() -> void:
 			for i in range(6):
 				_spawn_enemy(kinds[i], Vector2(80.0 + (i % 3) * 180.0, 260.0 + (i / 3) * 180.0),
 					i == 0, "none")
+		elif _shot_mode == "upgrade":
+			in_menu = false
+			_reset_game()
+			_open_upgrade_draft()
+		elif _shot_mode == "upgrade_apply":
+			in_menu = false
+			_reset_game()
+			_open_upgrade_draft()
+		elif _shot_mode == "motes":
+			in_menu = false
+			_reset_game()
+			for i in range(8):
+				var a := TAU * float(i) / 8.0
+				_spawn_mote(player_pos + Vector2(cos(a), sin(a)) * 150.0)
 		elif _shot_mode == "pause" or _shot_mode == "gameover":
 			in_menu = false
 			_reset_game()
@@ -284,8 +304,10 @@ func _process(delta: float) -> void:
 			wait = 4.8
 		elif _shot_mode == "action":
 			wait = 3.0
-		elif _shot_mode == "pause" or _shot_mode == "gameover":
+		elif _shot_mode == "pause" or _shot_mode == "gameover" or _shot_mode == "upgrade_apply":
 			wait = 2.2
+		if _shot_mode == "upgrade_apply" and upgrade_pending and _shot_t > 0.8:
+			_choose_upgrade(0)
 		if _shot_mode == "pause" and not paused and _shot_t > 1.0:
 			paused = true
 		if _shot_mode == "gameover" and not game_over and _shot_t > 1.0:
@@ -315,6 +337,9 @@ func _process(delta: float) -> void:
 		game_over_time += delta
 		queue_redraw()
 		return
+	if upgrade_pending:
+		queue_redraw()
+		return
 
 	if shake_t > 0.0:
 		shake_t = maxf(0.0, shake_t - delta)
@@ -330,6 +355,7 @@ func _process(delta: float) -> void:
 	_update_drones(delta)
 	_update_crates(delta)
 	_update_bullets(delta)
+	_update_motes(delta)
 	_update_spawner(delta)
 	_resolve_collisions()
 	queue_redraw()
@@ -364,7 +390,7 @@ func _update_player(delta: float) -> void:
 
 		if dir.length_squared() > 0.0:
 			dir = dir.normalized()
-			var speed := CFG.PLAYER_SPEED
+			var speed := CFG.PLAYER_SPEED * float(upgrades.get("speed", 1.0))
 			player_pos += dir * speed * delta
 			pointer_active = false
 			player_last_dir = dir.x
@@ -397,7 +423,7 @@ func _update_skills(delta: float) -> void:
 	overdrive = maxf(0.0, overdrive - delta)
 	swap_idle += delta
 	# 星爆自然回充
-	nova = minf(100.0, nova + CFG.NOVA_REGEN_PER_SECOND * delta)
+	_gain_nova(CFG.NOVA_REGEN_PER_SECOND * delta)
 
 
 func _update_economy(delta: float) -> void:
@@ -406,6 +432,121 @@ func _update_economy(delta: float) -> void:
 		if combo_timer <= 0.0:
 			combo = 0
 			multiplier = 1
+
+
+func _reset_upgrades() -> void:
+	upgrades = {
+		"damage_mul": 1.0, "drone_rate": 1.0, "max_hull": float(CFG.START_LIVES),
+		"nova_gain": 1.0, "overdrive_bonus": 0.0, "speed": 1.0,
+		"crate_rate": 1.0, "break_mul": 1.0,
+		"rift_gain": 1.0, "rift_score": 1.0,
+	}
+	upgrade_pending = false
+	upgrade_options.clear()
+	rift = 0
+	motes.clear()
+
+
+func _gain_nova(amount: float) -> void:
+	nova = minf(100.0, nova + amount * float(upgrades.get("nova_gain", 1.0)))
+
+
+func _spawn_mote(pos: Vector2) -> void:
+	if motes.size() >= CFG.MOTE_MAX:
+		return
+	motes.append({
+		"pos": pos, "vel": Vector2(randf_range(-22.0, 22.0), randf_range(-8.0, 20.0)),
+		"life": CFG.MOTE_LIFE, "spin": randf() * TAU,
+	})
+
+
+func _update_motes(delta: float) -> void:
+	for i in range(motes.size() - 1, -1, -1):
+		var m: Dictionary = motes[i]
+		m["life"] = float(m["life"]) - delta
+		if float(m["life"]) <= 0.0:
+			motes.remove_at(i)
+			continue
+		var pos := Vector2(m["pos"])
+		var to_player := player_pos - pos
+		if to_player.length() < CFG.MOTE_MAGNET_RADIUS:
+			pos += to_player.normalized() * CFG.MOTE_MAGNET_SPEED * delta
+		else:
+			pos += Vector2(m["vel"]) * delta
+			m["vel"] = Vector2(m["vel"]) * (1.0 - 1.8 * delta)
+		m["pos"] = pos
+		m["spin"] = float(m["spin"]) + delta * 5.0
+		if pos.distance_to(player_pos) < CFG.MOTE_COLLECT_RADIUS:
+			motes.remove_at(i)
+			_collect_mote()
+
+
+func _collect_mote() -> void:
+	rift += 1
+	score += int(roundf(CFG.MOTE_SCORE * multiplier * float(upgrades.get("rift_score", 1.0))))
+	combo_timer = maxf(combo_timer, CFG.MOTE_COMBO_EXTEND)
+	_gain_nova(CFG.MOTE_NOVA * float(upgrades.get("rift_gain", 1.0)))
+	if rift % 6 == 0 and fx != null:
+		fx.float_text(player_pos + Vector2(0, -38), "裂隙 ×%d" % rift,
+			Color.html("#8FF7EA"), 13)
+
+
+func _roll_upgrades() -> void:
+	upgrade_options.clear()
+	var pool := CFG.UPGRADE_POOL.duplicate()
+	for i in range(mini(CFG.UPGRADE_CARD_COUNT, pool.size())):
+		var idx := randi() % pool.size()
+		upgrade_options.append(pool[idx])
+		pool.remove_at(idx)
+
+
+func _open_upgrade_draft() -> void:
+	_roll_upgrades()
+	upgrade_pending = true
+	player_invuln = maxf(player_invuln, 1.0)
+	_add_shake(8.0, 0.4)
+
+
+func _choose_upgrade(index: int) -> void:
+	if not upgrade_pending or index < 0 or index >= upgrade_options.size():
+		return
+	var u: Dictionary = upgrade_options[index]
+	match String(u.get("id", "")):
+		"damage":
+			upgrades["damage_mul"] = float(upgrades["damage_mul"]) + CFG.UPGRADE_DAMAGE_STEP
+		"drone":
+			upgrades["drone_rate"] = float(upgrades["drone_rate"]) + CFG.UPGRADE_DRONE_STEP
+		"hull":
+			upgrades["max_hull"] = minf(CFG.UPGRADE_MAX_HULL,
+				float(upgrades["max_hull"]) + 1.0)
+			player_lives = mini(int(upgrades["max_hull"]), player_lives + 1)
+		"shield":
+			player_shields = mini(CFG.MAX_SHIELDS, player_shields + 1)
+		"nova":
+			upgrades["nova_gain"] = float(upgrades["nova_gain"]) + CFG.UPGRADE_NOVA_STEP
+		"overdrive":
+			upgrades["overdrive_bonus"] = float(upgrades["overdrive_bonus"]) + CFG.UPGRADE_OVERDRIVE_STEP
+		"speed":
+			upgrades["speed"] = minf(1.30, float(upgrades["speed"]) + CFG.UPGRADE_SPEED_STEP)
+		"crate":
+			upgrades["crate_rate"] = float(upgrades["crate_rate"]) + CFG.UPGRADE_CRATE_STEP
+		"break":
+			upgrades["break_mul"] = float(upgrades["break_mul"]) + CFG.UPGRADE_BREAK_STEP
+		"rift":
+			upgrades["rift_gain"] = float(upgrades["rift_gain"]) + CFG.UPGRADE_RIFT_NOVA_STEP
+			upgrades["rift_score"] = float(upgrades["rift_score"]) + CFG.UPGRADE_RIFT_SCORE_STEP
+	upgrade_pending = false
+	upgrade_options.clear()
+	zone = mini(10, zone + 1)
+	zone_kills = 0
+	boss_cleared = false
+	boss_pending = false
+	player_invuln = maxf(player_invuln, CFG.INVULN_ON_ZONE_CHANGE)
+	crate_timer = minf(crate_timer, 4.0)
+	sfx.play_pick()
+	if fx != null:
+		fx.float_text(player_pos + Vector2(0, -46), "星区突破 · %s" % String(u.get("name", "")),
+			Color.html("#FFD27A"), 18)
 
 
 func _add_combo() -> void:
@@ -439,7 +580,7 @@ func _trigger_nova() -> void:
 	if nova < 100.0:
 		return
 	nova = 0.0
-	overdrive = CFG.OVERDRIVE_TIME
+	overdrive = CFG.OVERDRIVE_TIME + float(upgrades.get("overdrive_bonus", 0.0))
 	player_invuln = maxf(player_invuln, CFG.INVULN_AFTER_NOVA)
 	sfx.play_nova()
 	if fx != null:
@@ -608,10 +749,9 @@ func _update_boss(delta: float) -> void:
 		_add_shake(15.0, 0.55)
 		boss = null
 		boss_cleared = true
-		zone = mini(10, zone + 1)
 		zone_kills = 0
-		player_invuln = maxf(player_invuln, CFG.INVULN_ON_ZONE_CHANGE)
-		crate_timer = minf(crate_timer, 4.0)
+		enemy_bullets.clear()
+		_open_upgrade_draft()
 
 
 # ---------------------------------------------------------------- 僚机
@@ -640,7 +780,7 @@ func _update_drones(delta: float) -> void:
 	var slots := _drone_slots()
 	for i in range(drones.size()):
 		var d: Dictionary = drones[i]
-		d["timer"] = float(d["timer"]) - delta
+		d["timer"] = float(d["timer"]) - delta * float(upgrades.get("drone_rate", 1.0))
 		if float(d["timer"]) > 0.0:
 			continue
 		var slot: Vector2 = slots[i] if i < slots.size() else Vector2.ZERO
@@ -670,13 +810,13 @@ func _update_drones(delta: float) -> void:
 					var eb: Bullet = enemy_bullets[j]
 					if eb.pos.distance_to(dpos) < CFG.AEGIS_PD_RADIUS + eb.radius:
 						enemy_bullets.remove_at(j)
-						nova = minf(100.0, nova + CFG.NOVA_ON_POINT_DEFENSE)
+						_gain_nova(CFG.NOVA_ON_POINT_DEFENSE)
 
 
 # ---------------------------------------------------------------- 补给箱
 
 func _update_crates(delta: float) -> void:
-	crate_timer -= delta
+	crate_timer -= delta * float(upgrades.get("crate_rate", 1.0))
 	if crate_timer <= 0.0 and boss == null:
 		crate_timer = randf_range(CFG.SUPPLY_INTERVAL_MIN, CFG.SUPPLY_INTERVAL)
 		_spawn_crate()
@@ -712,7 +852,7 @@ func _apply_crate(kind: String) -> void:
 		"drone":
 			_add_drone()
 		"life":
-			player_lives = mini(CFG.START_LIVES, player_lives + 1)
+			player_lives = mini(int(upgrades.get("max_hull", CFG.START_LIVES)), player_lives + 1)
 		"shield":
 			player_shields = mini(CFG.MAX_SHIELDS, player_shields + 1)
 		"charge":
@@ -790,7 +930,9 @@ func _resolve_collisions() -> void:
 			var bdx := (b.pos.x - boss.pos.x) / (boss.hit_rx() + b.radius)
 			var bdy := (b.pos.y - boss.pos.y) / (boss.hit_ry() + b.radius)
 			if bdx * bdx + bdy * bdy <= 1.0:
-				var bdmg := b.damage * (CFG.PRISM_BOSS_BONUS if b.kind == "lance" else 1.0)
+				var bdmg := b.damage * float(upgrades.get("damage_mul", 1.0)) \
+					* float(upgrades.get("break_mul", 1.0)) \
+					* (CFG.PRISM_BOSS_BONUS if b.kind == "lance" else 1.0)
 				if boss.take_damage(bdmg):
 					sfx.play_hit()
 				boss.damage_flash()
@@ -808,7 +950,7 @@ func _resolve_collisions() -> void:
 				continue
 			var rr := e.hit_r + b.radius
 			if _seg_point_d2(b.prev, b.pos, e.pos) <= rr * rr:
-				e.hp -= b.damage * e.damage_taken_mul
+				e.hp -= b.damage * e.damage_taken_mul * float(upgrades.get("damage_mul", 1.0))
 				e.flash = 0.08
 				if fx != null:
 					fx.hit(b.pos, Color(1.0, 0.92, 0.68))
@@ -827,7 +969,7 @@ func _resolve_collisions() -> void:
 func _kill_enemy(index: int, diff: Dictionary) -> void:
 	var e: Enemy = enemies[index]
 	score += int(roundf(e.score_value * float(diff["scoreMul"]) * multiplier))
-	nova = minf(100.0, nova + (CFG.NOVA_ON_ELITE_KILL if e.elite else CFG.NOVA_ON_KILL))
+	_gain_nova(CFG.NOVA_ON_ELITE_KILL if e.elite else CFG.NOVA_ON_KILL)
 	_add_combo()
 	total_kills += 1
 	zone_kills += 1
@@ -860,7 +1002,8 @@ func _kill_enemy(index: int, diff: Dictionary) -> void:
 		if d2 <= graze_r * graze_r and not b.grazed:
 			b.grazed = true
 			graze += 1
-			nova = minf(100.0, nova + CFG.NOVA_ON_GRAZE)
+			_gain_nova(CFG.NOVA_ON_GRAZE)
+			_spawn_mote(b.pos)
 		if player_invuln <= 0.0 and d2 <= hit_r * hit_r:
 			enemy_bullets.remove_at(i)
 			_player_hit()
@@ -883,11 +1026,11 @@ func _player_hit() -> void:
 	if player_shields > 0:
 		player_shields -= 1
 		player_invuln = CFG.INVULN_AFTER_SHIELD
-		nova = minf(100.0, nova + CFG.NOVA_ON_SHIELD_BREAK)
+		_gain_nova(CFG.NOVA_ON_SHIELD_BREAK)
 	else:
 		player_lives -= 1
 		player_invuln = CFG.INVULN_AFTER_HULL_HIT
-		nova = minf(100.0, nova + CFG.NOVA_ON_HULL_HIT)
+		_gain_nova(CFG.NOVA_ON_HULL_HIT)
 		combo = 0
 		multiplier = 1
 		combo_timer = 0.0
@@ -911,6 +1054,21 @@ func _seg_point_d2(a: Vector2, b: Vector2, p: Vector2) -> float:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if upgrade_pending:
+		if event is InputEventKey and event.pressed and not event.echo:
+			if event.keycode == KEY_1:
+				_choose_upgrade(0)
+			elif event.keycode == KEY_2:
+				_choose_upgrade(1)
+			elif event.keycode == KEY_3:
+				_choose_upgrade(2)
+		elif (event is InputEventMouseButton and event.pressed) \
+				or (event is InputEventScreenTouch and event.pressed):
+			if ui != null:
+				var choice: String = ui.press(event.position)
+				if choice.begins_with("upgrade_"):
+					_choose_upgrade(int(choice.substr(8)))
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if in_menu:
 			if event.keycode == KEY_ENTER or event.keycode == KEY_SPACE:
@@ -996,6 +1154,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _handle_ui_action(action: String) -> bool:
+	if action.begins_with("upgrade_"):
+		_choose_upgrade(int(action.substr(8)))
+		return true
 	match action:
 		"":
 			return false
@@ -1038,6 +1199,7 @@ func _start_run() -> void:
 
 func _to_menu() -> void:
 	_save_best()
+	_reset_upgrades()
 	in_menu = true
 	paused = false
 	game_over = false
@@ -1063,8 +1225,9 @@ func _to_menu() -> void:
 
 func _reset_game() -> void:
 	in_menu = false
+	_reset_upgrades()
 	player_pos = Vector2(view_size.x * 0.5, view_size.y - CFG.RESPAWN_INSET - safe_bottom)
-	player_lives = CFG.START_LIVES
+	player_lives = int(upgrades["max_hull"])
 	player_invuln = CFG.INVULN_ON_SPAWN
 	player_bank = 0.0
 	fire_timer = 0.0
@@ -1145,6 +1308,7 @@ func _draw() -> void:
 	draw_set_transform(off, 0.0, Vector2.ONE)
 	_draw_crates()
 	_draw_bullets()
+	_draw_motes()
 	_draw_enemies()
 	if boss != null:
 		_draw_boss()
@@ -1213,6 +1377,21 @@ func _draw_drones() -> void:
 		var dp := player_pos + slot
 		_blob(dp, 17.0, Color(0.85, 1.0, 0.96, 0.18), 5)
 		_draw_ship(String(art[drones[i]["kind"]]), dp, 16.0, 0.0, Color(1, 1, 1, 0.96))
+
+
+func _draw_motes() -> void:
+	for m in motes:
+		var pos := Vector2(m["pos"])
+		var spin := float(m["spin"])
+		var life_k := clampf(float(m["life"]) / CFG.MOTE_LIFE, 0.0, 1.0)
+		_blob(pos, 16.0, Color(0.45, 1.0, 0.92, 0.20 * life_k), 5)
+		draw_set_transform(pos, spin, Vector2.ONE)
+		var pts := PackedVector2Array([
+			Vector2(0, -8.5), Vector2(5.5, 0), Vector2(0, 8.5), Vector2(-5.5, 0)])
+		draw_colored_polygon(pts, Color(0.62, 1.0, 0.95, 0.98 * life_k))
+		draw_polyline(_closed(pts), Color(0.10, 0.10, 0.18, 0.60 * life_k), 1.8, true)
+		draw_circle(Vector2(0, 0), 2.8, Color(1, 1, 1, 0.95 * life_k))
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 func _draw_bullets() -> void:

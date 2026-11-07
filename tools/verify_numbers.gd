@@ -16,6 +16,11 @@ func _initialize() -> void:
 	_eq(failures, "PLAYER_GRAZE_R", CFG.PLAYER_GRAZE_R, 28.0)
 	_eq(failures, "PLAYER_SPEED", CFG.PLAYER_SPEED, 440.0)
 	_eq(failures, "RESONANCE_MAX", CFG.RESONANCE_MAX, 5)
+	_eq(failures, "MOTE_SCORE", CFG.MOTE_SCORE, 12)
+	_eq(failures, "MOTE_NOVA", CFG.MOTE_NOVA, 3.0)
+	_eq(failures, "UPGRADE_CARD_COUNT", CFG.UPGRADE_CARD_COUNT, 3)
+	_eq(failures, "UPGRADE_MAX_HULL", CFG.UPGRADE_MAX_HULL, 4)
+	_eq(failures, "UPGRADE_POOL", CFG.UPGRADE_POOL.size(), 10)
 
 	_eq(failures, "pulse.speed", CFG.WEAPON_LINES["pulse"]["speed"], 1250.0)
 	_eq(failures, "prism.speed", CFG.WEAPON_LINES["prism"]["speed"], 560.0)

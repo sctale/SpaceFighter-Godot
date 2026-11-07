@@ -16,6 +16,7 @@ var menu_buttons := {}
 var game_buttons := {}
 var pause_buttons := {}
 var over_buttons := {}
+var upgrade_buttons := {}
 
 var _t := 0.0
 var _banner_t := 0.0
@@ -44,7 +45,7 @@ func _process(delta: float) -> void:
 		_modal_t = 0.0
 		_last_state = state
 	_fade = maxf(0.0, _fade - delta * 3.4)
-	if state == "paused" or state == "over":
+	if state == "paused" or state == "over" or state == "upgrade":
 		_modal_t += delta
 	main.display_score = lerpf(float(main.display_score), float(main.score),
 		1.0 - exp(-7.0 * delta))
@@ -72,6 +73,8 @@ func _process(delta: float) -> void:
 func _state() -> String:
 	if bool(main.in_menu):
 		return "menu"
+	if bool(main.upgrade_pending):
+		return "upgrade"
 	if bool(main.game_over):
 		return "over"
 	if bool(main.paused):
@@ -105,7 +108,9 @@ func _draw() -> void:
 		_draw_fade(vw, vh)
 		return
 	game_buttons = UIHud.draw(self, skin, main, vw, vh, st, sb, sl, sr, _t, flash)
-	if bool(main.paused):
+	if bool(main.upgrade_pending):
+		_draw_upgrade(vw, vh, st, sb, flash)
+	elif bool(main.paused):
 		_draw_pause(vw, vh, st, sb, flash)
 	elif bool(main.game_over):
 		_draw_results(vw, vh, st, sb, flash)
@@ -116,6 +121,11 @@ func _draw() -> void:
 
 func press(p: Vector2) -> String:
 	if main == null:
+		return ""
+	if bool(main.upgrade_pending):
+		for k in upgrade_buttons:
+			if Rect2(upgrade_buttons[k]).has_point(p):
+				return _flash_action("upgrade_" + String(k))
 		return ""
 	if bool(main.in_menu):
 		for k in menu_buttons:
@@ -146,6 +156,65 @@ func _flash_action(action: String) -> String:
 		pressed = action.substr(5)
 	pressed_t = 0.20
 	return action
+
+
+func _draw_upgrade(vw: float, vh: float, st: float, sb: float, flash: String) -> void:
+	var k := _ease_out(_modal_t / 0.40)
+	draw_rect(Rect2(0, 0, vw, vh), Color(0.10, 0.07, 0.16, 0.62 * k))
+	var w := minf(vw - 48.0, 470.0)
+	var h := minf(vh - st - sb - 48.0, 500.0)
+	var card := Rect2((vw - w) * 0.5, (vh - h) * 0.5 + (1.0 - k) * 38.0, w, h)
+	skin.panel(self, card, skin.PAPER, 26.0, skin.INK, 4.0, true)
+	skin.halftone(self, Rect2(card.position + Vector2(18, 16), Vector2(64, 44)),
+		Color(skin.CYAN.r, skin.CYAN.g, skin.CYAN.b, 0.13), 12.0)
+	skin.sparkle(self, card.position + Vector2(w - 46, 46), 12.0, skin.GOLD, _t)
+	skin.text_center(self, vw * 0.5, card.position.y + 52.0, "星区突破", 34, skin.PINK_DEEP, 0)
+	skin.text_center(self, vw * 0.5, card.position.y + 76.0,
+		"BOSS 已击破 · 选择一项巡航强化", 11, skin.INK_SOFT, 0)
+	upgrade_buttons.clear()
+	var opt_h := 108.0
+	var gap := 10.0
+	var start_y := card.position.y + 112.0
+	for i in range(main.upgrade_options.size()):
+		var opt: Dictionary = main.upgrade_options[i]
+		var r := Rect2(card.position.x + 22.0, start_y + i * (opt_h + gap),
+			card.size.x - 44.0, opt_h)
+		var pressed := flash == "upgrade_%d" % i
+		if pressed:
+			r.position.y += 2.0
+		upgrade_buttons[str(i)] = r
+		var tint := Color.html(String(opt.get("tint", "#FF8FB1")))
+		skin.panel(self, r, skin.CREAM, 18.0, tint, 2.5, not pressed)
+		self.draw_circle(r.position + Vector2(36, 54), 24.0,
+			Color(tint.r, tint.g, tint.b, 0.18))
+		self.draw_arc(r.position + Vector2(36, 54), 24.0, 0, TAU, 32, tint, 2.0, true)
+		var ic := r.position + Vector2(36, 54)
+		var ic_col := skin.INK
+		match String(opt.get("icon", "burst")):
+			"ship":
+				skin.icon_ship(self, ic, 13.0, ic_col)
+			"heart":
+				skin.icon_heart(self, ic, 12.0, ic_col)
+			"shield":
+				skin.icon_shield(self, ic, 13.0, ic_col)
+			"star":
+				skin.icon_star(self, ic, 13.0, ic_col)
+			"chevron":
+				skin.icon_chevron(self, ic, 13.0, ic_col, 1.0)
+			"burst4":
+				skin.icon_burst(self, ic, 14.0, ic_col, 4)
+			_:
+				skin.icon_burst(self, ic, 14.0, ic_col, 8)
+		skin.text(self, r.position + Vector2(70, 42), String(opt.get("name", "强化")),
+			18, skin.INK)
+		skin.text(self, r.position + Vector2(70, 68), String(opt.get("desc", "")),
+			11, Color(skin.INK_SOFT.r, skin.INK_SOFT.g, skin.INK_SOFT.b, 0.9))
+		skin.keycap(self, Rect2(r.end.x - 40.0, r.position.y + 12.0, 24.0, 22.0),
+			str(i + 1), 10)
+		skin.icon_chevron(self, r.position + Vector2(r.size.x - 30.0, 54.0),
+			10.0, tint, 1.0)
+	skin.text_center(self, vw * 0.5, card.end.y - 18.0,
+		"选择后立即生效 · 进入下一星区", 11, skin.INK_SOFT, 0)
 
 
 func _draw_pause(vw: float, vh: float, st: float, sb: float, flash: String) -> void:
@@ -244,7 +313,7 @@ func _draw_banners(vw: float, vh: float, st: float) -> void:
 		draw_rect(Rect2(0, y - 54.0, vw, 108.0), Color(0.10, 0.07, 0.16, 0.55 * a))
 		draw_rect(Rect2(0, y - 54.0, vw, 3), Color(1, 1, 1, 0.35 * a))
 		draw_rect(Rect2(0, y + 51.0, vw, 3), Color(1, 1, 1, 0.35 * a))
-		skin.text_center(self, vw * 0.5, y - 8.0, "ZONE %02d" % _banner_zone, 12, Color(1, 1, 1, a), 0)
+		skin.text_center(self, vw * 0.5, y - 8.0, "星区 %02d" % _banner_zone, 12, Color(1, 1, 1, a), 0)
 		skin.text_center(self, vw * 0.5, y + 32.0, UIMenu.ZONE_NAMES[clampi(_banner_zone - 1, 0, 9)],
 			34, Color(1, 1, 1, a), 3)
 	if _warning_t > 0.0:

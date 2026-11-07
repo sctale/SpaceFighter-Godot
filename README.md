@@ -1,7 +1,29 @@
-# Space Fighter — Godot 4.7.2 / v1.1.1
+# Space Fighter — Godot 4.7.2 / v1.2.0
 
 Migration of the retired Unity port, using `reference/web/www` (the original
 540x960 Canvas game) as the gameplay and numeric source of truth.
+
+## v1.2.0 gameplay innovation
+
+Benchmarked against Touhou (graze/bomb risk-reward), DoDonPachi (bullet-cancel
+economy), Raiden/Sky Force (mobile readability and power-ups), Archero/Vampire
+Survivors (in-run build choices) and Hades (three-choice boons). Gaps found:
+graze had no mechanical payoff, and there was no inter-zone build agency.
+
+- **裂隙碎片 (Rift Motes)**: every grazed bullet drops a magnetized shard.
+  Collecting it adds score, extends the combo window, charges nova, and fills
+  the new HUD `裂隙` counter. Grazing becomes a deliberate risk/reward loop
+  instead of a hidden stat.
+- **星区突破 three-card draft**: after every boss, the game freezes and offers
+  3 of 10 run upgrades (damage, drone rate, max hull, shield, nova gain,
+  overdrive duration, speed, crate rate, boss damage, rift resonance). Choices
+  stack across the 10 zones and change how the run is played.
+- No new touch button was added; the draft is modal and finger-friendly, and
+  all upgrades are applied through existing systems.
+
+![v1.2.0 rift motes](docs/shots/ui_v120_motes.png)
+![v1.2.0 zone draft](docs/shots/ui_v120_upgrade.png)
+![v1.2.0 action](docs/shots/ui_v120_action.png)
 
 ## v1.1.1 two-round polish
 
@@ -55,7 +77,7 @@ Migration of the retired Unity port, using `reference/web/www` (the original
 - [x] Playable core: keyboard + mouse/touch drag, pulse auto-fire, four enemy
       archetypes, aimed/fan/ring fire, swept collision, graze, score/lives,
       pause/restart, difficulty keys 1/2/3
-- [x] Numeric gate `tools/verify_numbers.gd` (**76 checks**, includes behaviour assertions)
+- [x] Numeric gate `tools/verify_numbers.gd` (**80 checks**, includes behaviour assertions)
 - [x] **Cel-shaded sprite art (v1.1.0)**: player + 12 enemy hulls + 3 bosses +
       drones + crates re-rendered in Blender into `assets/ships/` (94 PNGs),
       including hit-flash masks and boss rings. Drawn via the `ShipArt` contract
@@ -64,16 +86,16 @@ Migration of the retired Unity port, using `reference/web/www` (the original
 - [x] **App icon (v1.1.0)**: cel-shaded 3/4 hero on a pastel nebula
       (`assets/icons/`), wired into the project icon, Windows exe icon and
       Android adaptive launcher icon.
-- [x] Windows release export: `build/windows/SpaceFighter.exe` (v1.1.1.0)
-- [x] Android APK: `SpaceFighter-Godot-v1.1.1.apk` (42 MB, portrait, target SDK
+- [x] Windows release export: `build/windows/SpaceFighter.exe` (v1.2.0.0)
+- [x] Android APK: `SpaceFighter-Godot-v1.2.0.apk` (45 MB, portrait, target SDK
       36, release-signed with the project keystore)
 - [x] On-device install verified: Android 36 emulator with hardware GPU
-      (1080x1920 and 1080x2400), versionName 1.1.1 / code 11, no black bars,
+      (1080x1920 and 1080x2400), versionName 1.2.0 / code 12, no black bars,
       touch controls work, 0 Godot script/shader errors
 - [x] Release signing: project keystore (CN=Space Fighter, O=sctale), v2/v3 verified
       (`apksigner verify --verbose`)
 - [x] Touch controls: 星爆 / 冲刺 / 换线 rings + top-right pause + menu buttons
-- [x] Bundled Noto CJK subset (`assets/fonts/AuroraCJK.ttf`, 274 KB, 957 mapped glyphs)
+- [x] Bundled Noto CJK subset (`assets/fonts/AuroraCJK.ttf`, 280 KB, 971 mapped glyphs)
 - [x] Numeric parity: enemy hit radius `size * 0.78`, enemy bullet speed
       `min(300, 150×(1+tier×0.14))` (web `entities.js:1263,1393`)
 - [x] All 12 enemy behaviours, elite affixes, 6 movement / 9 fire modes,
@@ -106,7 +128,7 @@ godot --headless --path D:\V-Coding\space-fighter-godot \
   --script res://tools/verify_numbers.gd
 ```
 
-Expected: `VERIFY_OK checks=75` and exit code 0.
+Expected: `VERIFY_OK checks=80` and exit code 0.
 
 ## Export
 

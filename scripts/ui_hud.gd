@@ -41,9 +41,10 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 	skin.panel(ci, hull_r, Color(1, 1, 1, 0.93), 18.0, skin.INK, 3.0, true)
 	skin.text(ci, hull_r.position + Vector2(14, 21), "船 体", 11, skin.INK_SOFT)
 	var lives := int(main.player_lives)
-	for i in range(3):
+	var max_h := mini(CFG.UPGRADE_MAX_HULL, maxi(3, int(main.upgrades.get("max_hull", 3))))
+	for i in range(max_h):
 		var on := i < lives
-		skin.icon_ship(ci, hull_r.position + Vector2(24 + i * 24.0, 42.0), 9.0,
+		skin.icon_ship(ci, hull_r.position + Vector2(24 + i * 20.0, 42.0), 9.0,
 			skin.PINK_DEEP if on else Color(skin.INK.r, skin.INK.g, skin.INK.b, 0.18))
 	var shields := int(main.player_shields)
 	for i in range(3):
@@ -96,6 +97,10 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 		ci.draw_arc(zone_r.position + Vector2(16, 13), 8.0, 0.2, 2.4, 16,
 			Color(1, 1, 1, 0.55), 1.5, true)
 		skin.text(ci, zone_r.position + Vector2(30, 18), "星区 %02d" % int(main.zone), 11, skin.INK)
+		var rift_r := Rect2(zone_r.end.x + 8.0, zone_r.position.y, 92.0, 26.0)
+		skin.panel(ci, rift_r, Color(1, 1, 1, 0.82), 10.0, skin.INK, 2.0, false)
+		skin.icon_burst(ci, rift_r.position + Vector2(16, 13), 6.5, skin.CYAN, 4)
+		skin.text(ci, rift_r.position + Vector2(28, 18), "裂隙 %d" % int(main.rift), 11, skin.INK)
 
 	# 武器板
 	var wp_r := Rect2(safe_left + 14.0, bottom - 86.0, 216.0, 86.0)
