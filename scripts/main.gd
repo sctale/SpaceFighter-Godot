@@ -59,6 +59,7 @@ var player_bank := 0.0
 var player_last_dir := 0.0
 var fire_timer := 0.0
 var focus := false
+var focus_locked := false
 
 # 武器与玩家生存/技能（迁移C）
 var weapons := WeaponSystem.new()
@@ -200,7 +201,7 @@ func _process(delta: float) -> void:
 		queue_redraw()
 		return
 
-	focus = Input.is_key_pressed(KEY_SHIFT)
+	focus = Input.is_key_pressed(KEY_SHIFT) or focus_locked
 	player_invuln = maxf(0.0, player_invuln - delta)
 	_update_skills(delta)
 	_update_economy(delta)
@@ -824,6 +825,7 @@ func _controls() -> Dictionary:
 		"nova": Vector4(CFG.WIDTH - 100.0, CFG.HEIGHT - 112.0, 72.0, 72.0),
 		"dash": Vector4(CFG.WIDTH - 182.0, CFG.HEIGHT - 96.0, 58.0, 58.0),
 		"weapon": Vector4(CFG.WIDTH - 168.0, CFG.HEIGHT - 190.0, 58.0, 58.0),
+		"focus": Vector4(CFG.WIDTH - 252.0, CFG.HEIGHT - 96.0, 58.0, 58.0),
 	}
 
 
@@ -842,6 +844,8 @@ func _press_control(p: Vector2) -> bool:
 				"weapon":
 					if weapons.cycle_weapon():
 						swap_idle = 0.0
+				"focus":
+					focus_locked = not focus_locked
 			return true
 	return false
 
@@ -899,6 +903,7 @@ func _reset_game() -> void:
 	combo = 0
 	combo_timer = 0.0
 	multiplier = 1
+	focus_locked = false
 	boss = null
 	boss_pending = false
 	boss_cleared = false
@@ -1108,6 +1113,14 @@ func _draw_controls() -> void:
 	draw_string(font, wc + Vector2(-13, -2), "换线", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, wtint)
 	draw_string(font, wc + Vector2(-13, 12), "L%d" % weapons.active().level,
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(0.55, 0.6, 0.73))
+	# 精准模式（触屏切换；键盘 Shift 同时有效）
+	var fr: Vector4 = ctrls["focus"]
+	var fc := Vector2(fr.x + fr.z * 0.5, fr.y + fr.w * 0.5)
+	draw_circle(fc, 26.0, Color(0.039, 0.067, 0.14, 0.8))
+	draw_arc(fc, 24.0, 0, TAU, 32,
+		Color(0.41, 0.96, 0.86, 0.95) if focus_locked else Color(0.4, 0.43, 0.55, 0.6), 2.5, true)
+	draw_string(font, fc + Vector2(-13, 5), "精准", HORIZONTAL_ALIGNMENT_LEFT, -1, 13,
+		Color.html("#69f5dc") if focus_locked else Color(0.55, 0.6, 0.73))
 
 
 func _draw_stars() -> void:

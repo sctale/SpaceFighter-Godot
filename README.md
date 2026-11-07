@@ -19,13 +19,13 @@ Migration of the retired Unity port, using `reference/web/www` (the original
 - [x] **App icon (v0.1.1)**: 3/4 hero interceptor (`assets/icons/`), wired into
       the project icon, Windows exe icon and Android adaptive launcher icon.
 - [x] Windows debug export: `build/windows/SpaceFighter.exe`
-- [x] Android APK: `SpaceFighter-Godot-v1.0.0.apk` (38 MB, target SDK 36,
+- [x] Android APK: `SpaceFighter-Godot-v1.0.1.apk` (38 MB, target SDK 36,
       portrait, release-signed with the project keystore)
-- [x] On-device install verified: emulator 1080x1920, v1.0.0 / code 8, sprites
+- [x] On-device install verified: emulator 1080x1920, v1.0.1 / code 9, sprites
       render, touch controls work, 0 script errors (`docs/shots/godot_v1_play.png`)
 - [x] Release signing: project keystore (CN=Space Fighter, O=sctale), v2/v3 verified
 - [x] Touch controls: 星爆 / 冲刺 / 换线 rings + top-right pause + menu buttons
-- [ ] Touch controls for focus / difficulty (keyboard-only for now)
+- [x] Touch controls: focus toggle (精准) + difficulty chips in the menu
 - [x] Bundled Noto CJK subset (`assets/fonts/AuroraCJK.ttf`, 229 KB, 639 glyphs)
 - [x] Numeric parity: enemy hit radius `size * 0.78`, enemy bullet speed
       `min(300, 150×(1+tier×0.14))` (web `entities.js:1263,1393`)
