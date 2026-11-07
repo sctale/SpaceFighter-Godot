@@ -1,7 +1,31 @@
-# Space Fighter — Godot 4.7.2 / v1.2.1
+# Space Fighter — Godot 4.7.2 / v1.3.0
 
 Migration of the retired Unity port, using `reference/web/www` (the original
 540x960 Canvas game) as the gameplay and numeric source of truth.
+
+## v1.3.0 boss roster, per-zone BGM and longer zones
+
+- **Six bosses**: three new cel-shaded silhouettes — 塔罗斯 / 铁壁 (wide
+  dreadnought), 许德拉 / 噬星者 (vertical serpent), 塞拉弗 / 裁决者 (X-wing
+  seraph) — rendered with the same Blender anime pipeline. Zones rotate all six
+  (`(zone-1)%6`), each with its own 3-phase sequence and bullet tint.
+- **Per-zone BGM**: ten synthetic 29–53 s loops (`tools/gen_music.py`, OGG,
+  ~3.4 MB total) in `assets/music/`; `MusicPlayer` fades in on zone change
+  (−40 → −12 dB) and pauses with the pause menu.
+- **Longer zones**: kill quota `12 + 4×zone` → `28 + 4×zone`, plus a 40 s
+  minimum dwell time (`ZONE_MIN_TIME`); a zone now runs ~45 s instead of ~20 s
+  before the boss.
+- **Ship switching**: the hull art did change, but the second weapon line
+  unlocked too late. The first supply crate now guarantees 棱镜, the 换线
+  button shows `锁定` until two lines are unlocked, and an early tap shows a
+  hint.
+- Gate `checks=85`; selftest `n=5` adds BGM and zone-pacing assertions.
+- Android versionName `1.3.0` / code `14`.
+
+![v1.3.0 dreadnought](docs/shots/ui_v130_boss_dreadnought.png)
+![v1.3.0 serpent](docs/shots/ui_v130_boss_serpent.png)
+![v1.3.0 seraph](docs/shots/ui_v130_boss_seraph.png)
+![v1.3.0 ship switch](docs/shots/ui_v130_switch.png)
 
 ## v1.2.1 gameplay integrity + two-round polish
 
@@ -99,26 +123,26 @@ graze had no mechanical payoff, and there was no inter-zone build agency.
 - [x] Playable core: keyboard + mouse/touch drag, pulse auto-fire, four enemy
       archetypes, aimed/fan/ring fire, swept collision, graze, score/lives,
       pause/restart, difficulty keys 1/2/3
-- [x] Numeric gate `tools/verify_numbers.gd` (**81 checks**) plus headless
-      `-selftest` behaviour assertions (`SELFTEST_OK n=3`)
-- [x] **Cel-shaded sprite art (v1.1.0)**: player + 12 enemy hulls + 3 bosses +
-      drones + crates re-rendered in Blender into `assets/ships/` (94 PNGs),
+- [x] Numeric gate `tools/verify_numbers.gd` (**85 checks**) plus headless
+      `-selftest` behaviour assertions (`SELFTEST_OK n=5`)
+- [x] **Cel-shaded sprite art**: player + 12 enemy hulls + **6 bosses** +
+      drones + crates re-rendered in Blender into `assets/ships/`,
       including hit-flash masks and boss rings. Drawn via the `ShipArt` contract
       (visual outer edge = radius, canvas side = radius / 0.46); polygon fallback
       kept if a texture is missing.
 - [x] **App icon (v1.1.0)**: cel-shaded 3/4 hero on a pastel nebula
       (`assets/icons/`), wired into the project icon, Windows exe icon and
       Android adaptive launcher icon.
-- [x] Windows release export: `build/windows/SpaceFighter.exe` (v1.2.1.0)
-- [x] Android APK: `SpaceFighter-Godot-v1.2.1.apk` (31 MB, portrait, target SDK
+- [x] Windows release export: `build/windows/SpaceFighter.exe` (v1.3.0.0)
+- [x] Android APK: `SpaceFighter-Godot-v1.3.0.apk` (34 MB, portrait, target SDK
       36, release-signed with the project keystore)
 - [x] On-device install verified: Android 36 emulator with hardware GPU
-      (1080x1920 and 1080x2400), versionName 1.2.1 / code 13, no black bars,
+      (1080x1920 and 1080x2400), versionName 1.3.0 / code 14, no black bars,
       touch controls work, 0 Godot script/shader errors
 - [x] Release signing: project keystore (CN=Space Fighter, O=sctale), v2/v3 verified
       (`apksigner verify --verbose`)
 - [x] Touch controls: 星爆 / 冲刺 / 换线 rings + top-right pause + menu buttons
-- [x] Bundled Noto CJK subset (`assets/fonts/AuroraCJK.ttf`, 280 KB, 971 mapped glyphs)
+- [x] Bundled Noto CJK subset (`assets/fonts/AuroraCJK.ttf`, 296 KB, 817 chars)
 - [x] Numeric parity: enemy hit radius `size * 0.78`, enemy bullet speed
       `min(300, 150×(1+tier×0.14))` (web `entities.js:1263,1393`)
 - [x] All 12 enemy behaviours, elite affixes, 6 movement / 9 fire modes,
@@ -151,7 +175,7 @@ godot --headless --path D:\V-Coding\space-fighter-godot \
   --script res://tools/verify_numbers.gd
 ```
 
-Expected: `VERIFY_OK checks=81` and exit code 0.
+Expected: `VERIFY_OK checks=85` and exit code 0.
 
 ## Behaviour self-test
 
@@ -159,8 +183,8 @@ Expected: `VERIFY_OK checks=81` and exit code 0.
 godot --headless --path D:\V-Coding\space-fighter-godot -- -selftest
 ```
 
-Expected: `SELFTEST_OK n=3` and exit code 0 (hit without kills, graze drop,
-death closes the upgrade draft).
+Expected: `SELFTEST_OK n=5` and exit code 0 (hit without kills, graze drop,
+death closes the upgrade draft, zone-1 BGM playing, 40 s zone pacing).
 
 ## Export
 

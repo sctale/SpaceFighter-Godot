@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.3.0 — 2026-11-07
+
+**feat / boss roster, per-zone music, longer zones**
+
+- 新增 3 台 Boss（共 6 台）：塔罗斯 / 铁壁（宽体无畏舰）、许德拉 / 噬星者
+  （纵向蛇形）、塞拉弗 / 裁决者（四翼 X 形）；沿用 Blender 赛璐璐管线，
+  剪影与现有 3 台完全不同，星区按 `(zone-1)%6` 轮换。
+- 每台新 Boss 拥有独立的三阶段招式序列与弹幕色。
+- 新增每星区 BGM：`tools/gen_music.py` 合成 10 段 29–53 秒循环 OGG
+  （约 3.4 MB），`MusicPlayer` 切区淡入，暂停菜单同步暂停音乐。
+- 星区时长：击杀配额 `12+4z` → `28+4z`，并增加 40 秒最短停留；
+  单区从约 20 秒拉长到约 45 秒。
+- 换线体验：机体贴图本来就会随武器线切换，问题在于第二条线解锁太晚。
+  首个补给箱现在必掉棱镜；未解锁时换线键显示“锁定”，点按给出提示。
+- `星区` 进度条同时反映击杀与最短时长（取较小值）。
+- 数值 gate `checks=85`；headless selftest `n=5`（新增 BGM 与节奏断言）。
+- Android versionName `1.3.0` / code `14`；Windows FileVersion `1.3.0.0`。
+
 ## 1.2.1 — 2026-11-07
 
 **fix / gameplay integrity + two-round polish**

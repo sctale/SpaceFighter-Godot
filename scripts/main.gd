@@ -82,6 +82,7 @@ var multiplier := 1
 var in_menu := true
 var best_score := 0
 var sfx: Sfx
+var music: MusicPlayer
 var ui_font: Font
 
 # Boss / 补给 / 僚机
@@ -117,6 +118,7 @@ var wave_timer := 2.0
 var spawn_count := 0
 var zone := 1
 var zone_kills := 0
+var zone_time := 0.0
 var total_kills := 0
 var _tex_cache: Dictionary = {}
 var _keyart_cache: Dictionary = {}
@@ -157,6 +159,8 @@ func _ready() -> void:
 	weapons.spawn = _player_spawn_bullet
 	sfx = Sfx.new()
 	add_child(sfx)
+	music = MusicPlayer.new()
+	add_child(music)
 	_load_font()
 	_load_best()
 	_spawn_visuals()
@@ -177,9 +181,14 @@ func _ready() -> void:
 		if _shot_mode == "play":
 			in_menu = false
 			_reset_game()
-		elif _shot_mode == "boss":
+		elif _shot_mode.begins_with("boss"):
 			in_menu = false
 			_reset_game()
+			# `boss` 默认第 1 台；`boss2`..`boss6` 用于逐个验收新外观
+			var boss_idx := 0
+			if _shot_mode.length() > 4:
+				boss_idx = int(_shot_mode.substr(4)) - 1
+			zone = boss_idx + 1
 			_start_boss()
 		elif _shot_mode == "demo":
 			_demo_no_fire = true
@@ -216,6 +225,13 @@ func _ready() -> void:
 			for i in range(8):
 				var a := TAU * float(i) / 8.0
 				_spawn_mote(player_pos + Vector2(cos(a), sin(a)) * 150.0)
+		elif _shot_mode == "switch":
+			# 截图验收：解锁全部武器线并切到棱镜，确认机体贴图跟随换线
+			in_menu = false
+			_reset_game()
+			for l in weapons.lines:
+				l.unlocked = true
+			weapons.select_weapon("prism")
 		elif _shot_mode == "pause" or _shot_mode == "gameover":
 			in_menu = false
 			_reset_game()
@@ -344,8 +360,33 @@ func _run_selftest() -> void:
 		print("SELFTEST_FAIL draft game_over=%s pending=%s"
 		% [str(game_over), str(upgrade_pending)])
 
+	# 4) 开局 BGM 必须落在第 1 星区并处于播放状态
+	if music == null or not music.is_playing() or music.current_zone() != 1:
+		failures += 1
+		print("SELFTEST_FAIL music playing=%s zone=%d"
+		% [str(music != null and music.is_playing()),
+		-1 if music == null else music.current_zone()])
+
+	# 5) 星区最短时长：击杀配额满但时间不足时，不能提前进 Boss
+	_reset_game()
+	zone_kills = _zone_quota()
+	zone_time = 0.0
+	_update_spawner(0.05)
+	if boss != null:
+		failures += 1
+		print("SELFTEST_FAIL pace early boss at 0s")
+	zone_time = CFG.ZONE_MIN_TIME - 0.2
+	_update_spawner(0.05)
+	if boss != null:
+		failures += 1
+		print("SELFTEST_FAIL pace early boss at %.1fs" % zone_time)
+	_update_spawner(0.3)
+	if boss == null:
+		failures += 1
+		print("SELFTEST_FAIL pace no boss after %.1fs" % CFG.ZONE_MIN_TIME)
+
 	if failures == 0:
-		print("SELFTEST_OK n=3")
+		print("SELFTEST_OK n=5")
 	else:
 		print("SELFTEST_FAIL n=%d" % failures)
 	get_tree().quit(0 if failures == 0 else 1)
@@ -376,7 +417,7 @@ func _nearest_enemy(pos: Vector2) -> Enemy:
 func _process(delta: float) -> void:
 	if _shot_mode != "" and not _shot_taken:
 		_shot_t += delta
-		var wait := 3.6 if (_shot_mode == "play" or _shot_mode == "boss") else 1.6
+		var wait := 3.6 if (_shot_mode == "play" or _shot_mode.begins_with("boss")) else 1.6
 		if _shot_mode == "demo":
 			wait = 4.8
 		elif _shot_mode == "action":
@@ -661,6 +702,9 @@ func _choose_upgrade(index: int) -> void:
 	upgrade_options.clear()
 	zone = mini(10, zone + 1)
 	zone_kills = 0
+	zone_time = 0.0
+	if music != null:
+		music.play_zone(zone)
 	boss_cleared = false
 	boss_pending = false
 	player_invuln = maxf(player_invuln, CFG.INVULN_ON_ZONE_CHANGE)
@@ -725,12 +769,15 @@ func _density_tier() -> int:
 
 
 func _zone_quota() -> int:
-	return 12 + zone * 4
+	return CFG.ZONE_QUOTA_BASE + zone * CFG.ZONE_QUOTA_STEP
 
 
 ## 星区击杀进度 0..1，HUD 进度条使用。
 func zone_progress() -> float:
-	return clampf(float(zone_kills) / maxf(1.0, float(_zone_quota())), 0.0, 1.0)
+	# 击杀配额与最短时长都要满足，进度条取两者较小值
+	var kills_k := float(zone_kills) / maxf(1.0, float(_zone_quota()))
+	var time_k := float(zone_time) / CFG.ZONE_MIN_TIME
+	return clampf(minf(kills_k, time_k), 0.0, 1.0)
 
 
 func _roster_pool() -> Array:
@@ -747,10 +794,11 @@ func _roster_pool() -> Array:
 
 
 func _update_spawner(delta: float) -> void:
-	# 打满本区配额就进 Boss 战；Boss 战期间停刷小怪
+	# 打满本区配额且停留够最短时长才进 Boss；Boss 战期间停刷小怪
 	if boss != null:
 		return
-	if zone_kills >= _zone_quota():
+	zone_time += delta
+	if zone_kills >= _zone_quota() and zone_time >= CFG.ZONE_MIN_TIME:
 		_start_boss()
 		return
 	# 波次导演：每波一种队形，队形与机体随星区升级（替掉纯随机单刷）
@@ -848,8 +896,8 @@ func _update_enemies(delta: float) -> void:
 
 func _start_boss() -> void:
 	boss = Boss.new()
-	# 原版按 (星区-1)%3 轮换三台 Boss
-	boss.setup((zone - 1) % 3, zone, _density_tier(), CFG.DIFFICULTY[difficulty])
+	# 六台 Boss 按星区轮换（第 7 星区起回到第 1 台）
+	boss.setup((zone - 1) % 6, zone, _density_tier(), CFG.DIFFICULTY[difficulty])
 	boss.spawn_bullet = _enemy_spawn_bullet
 	boss.spawn_child = _spawn_child
 	boss.player_pos_fn = _player_pos
@@ -959,8 +1007,12 @@ func _update_crates(delta: float) -> void:
 
 func _spawn_crate() -> void:
 	var kinds := ["weapon", "drone", "life", "shield", "charge", "nova", "gem", "swap", "reflect", "prism"]
+	var kind: String = kinds[randi() % kinds.size()]
+	# 第二条武器线没解锁时，补给箱优先掉落棱镜，保证玩家在本局能换机
+	if weapons.unlocked_count() < 2 and not weapons.line("prism").unlocked:
+		kind = "prism"
 	var c := Crate.new()
-	c.setup(Vector2(randf_range(60.0, view_size.x - 60.0), -30.0), kinds[randi() % kinds.size()])
+	c.setup(Vector2(randf_range(60.0, view_size.x - 60.0), -30.0), kind)
 	crates.append(c)
 
 
@@ -1222,6 +1274,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if paused:
 			if event.keycode == KEY_ESCAPE or event.keycode == KEY_P:
 				paused = false
+				if music != null:
+					music.set_paused(false)
 			return
 		if game_over:
 			if event.keycode == KEY_R or event.keycode == KEY_ENTER:
@@ -1232,6 +1286,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				_reset_game()
 			KEY_ESCAPE, KEY_P:
 				paused = true
+				if music != null:
+					music.set_paused(true)
 			KEY_1:
 				difficulty = "cruise"
 			KEY_2:
@@ -1309,6 +1365,8 @@ func _handle_ui_action(action: String) -> bool:
 			_start_run()
 		"pause":
 			paused = true
+			if music != null:
+				music.set_paused(true)
 		"nova":
 			_trigger_nova()
 		"dash":
@@ -1316,8 +1374,13 @@ func _handle_ui_action(action: String) -> bool:
 		"weapon":
 			if weapons.cycle_weapon():
 				swap_idle = 0.0
+			elif fx != null:
+				fx.float_text(player_pos + Vector2(0, -46), "拾取棱镜补给解锁换线",
+					Color.html("#FFD27A"), 13)
 		"resume":
 			paused = false
+			if music != null:
+				music.set_paused(false)
 		"restart", "retry":
 			_start_run()
 		"menu":
@@ -1350,6 +1413,7 @@ func _to_menu() -> void:
 	multiplier = 1
 	zone = 1
 	zone_kills = 0
+	zone_time = 0.0
 	total_kills = 0
 	player_bullets.clear()
 	enemy_bullets.clear()
@@ -1360,6 +1424,8 @@ func _to_menu() -> void:
 	boss_pending = false
 	boss_cleared = false
 	player_pos = Vector2(view_size.x * 0.5, view_size.y - CFG.RESPAWN_INSET - safe_bottom)
+	if music != null:
+		music.stop()
 
 
 func _reset_game() -> void:
@@ -1385,6 +1451,7 @@ func _reset_game() -> void:
 	spawn_count = 0
 	zone = 1
 	zone_kills = 0
+	zone_time = 0.0
 	total_kills = 0
 	pointer_active = false
 	weapons = WeaponSystem.new()
@@ -1404,6 +1471,9 @@ func _reset_game() -> void:
 	crates.clear()
 	crate_timer = 16.0
 	drones.clear()
+	if music != null:
+		music.play_zone(1)
+		music.set_paused(false)
 
 
 func _ship_tex(name: String) -> Texture2D:
@@ -1464,8 +1534,10 @@ func _blob(center: Vector2, radius: float, col: Color, layers := 7) -> void:
 
 
 func _draw_boss() -> void:
-	var art: String = ["boss_gatekeeper", "boss_weaver", "boss_helios"][boss.index]
-	var ring: String = ["boss_gatekeeper_ring", "boss_weaver_ring", "boss_helios_ring"][boss.index]
+	var art: String = ["boss_gatekeeper", "boss_weaver", "boss_helios",
+		"boss_dreadnought", "boss_serpent", "boss_seraph"][boss.index]
+	var ring: String = ["boss_gatekeeper_ring", "boss_weaver_ring", "boss_helios_ring",
+		"boss_dreadnought_ring", "boss_serpent_ring", "boss_seraph_ring"][boss.index]
 	var alpha := 1.0
 	var grow := 1.06
 	if boss.dying:

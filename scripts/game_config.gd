@@ -300,6 +300,11 @@ const LINE_ALIASES := [
 const BULLET_LIFETIME := 4.0
 const MAX_ENEMIES_ALIVE := 42
 const MAX_ENEMY_BULLETS := 420
+
+# ---- 星区节奏（v1.3.0：把单区时长从约 20 秒拉到约 45 秒）----
+const ZONE_QUOTA_BASE := 28
+const ZONE_QUOTA_STEP := 4
+const ZONE_MIN_TIME := 40.0
 const MINE_DRAG := 3.8
 const MINE_BURST_SPEED := 128.0
 const WAVE_PHASE_RATE := 7.2

@@ -155,9 +155,11 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 		"%.1f" % float(main.dash_cd) if float(main.dash_cd) > 0.0 else "",
 		1.0 - clampf(float(main.dash_cd) / CFG.DASH_COOLDOWN, 0.0, 1.0),
 		skin.CYAN_DEEP, pressed == "dash", float(main.dash_cd) <= 0.0)
-	var swap_tint := wtint
+	var can_swap := int(main.weapons.unlocked_count()) >= 2
+	var swap_tint := wtint if can_swap else Color("#C9C3D4")
 	action_button(ci, skin, swap_c, swap_r, swap_tint, "swap", "换线",
-		"L%d" % lv, 1.0, skin.INK_SOFT, pressed == "weapon", false)
+		("L%d" % lv) if can_swap else "锁定", 1.0 if can_swap else 0.0,
+		skin.INK_SOFT, pressed == "weapon", can_swap)
 
 	return rects
 

@@ -7,10 +7,10 @@ extends RefCounted
 
 const CFG := preload("res://scripts/game_config.gd")
 
-const NAMES := ["阿刻戎", "薇尔", "赫利俄斯"]
-const TITLES := ["守门人", "织星者", "新星核心"]
-const BASE_HP := [400.0, 380.0, 440.0]
-const SIZES := [76.0, 80.0, 82.0]
+const NAMES := ["阿刻戎", "薇尔", "赫利俄斯", "塔罗斯", "许德拉", "塞拉弗"]
+const TITLES := ["守门人", "织星者", "新星核心", "铁壁", "噬星者", "裁决者"]
+const BASE_HP := [400.0, 380.0, 440.0, 520.0, 470.0, 500.0]
+const SIZES := [76.0, 80.0, 82.0, 88.0, 86.0, 84.0]
 
 # 22 招：名称与时长（entities.js:1724-1778）
 const MOVE_LABELS := [
@@ -29,6 +29,12 @@ const SEQUENCES := [
 	[[0, 13, 8, 9], [1, 13, 14, 0, 8, 4], [15, 16, 13, 17, 2, 1]],
 	[[2, 3, 18, 5, 12], [19, 10, 18, 6, 5], [16, 11, 19, 18, 2, 12]],
 	[[1, 7, 11, 9], [21, 6, 8, 1, 7], [21, 16, 17, 11, 20, 7]],
+	# 塔罗斯（宽体重炮）：重弹、雷区、光幕压制
+	[[7, 9, 4, 2], [6, 7, 15, 9, 10], [14, 17, 21, 16, 9, 7]],
+	# 许德拉（蛇形）：追踪、闪现、雷阵
+	[[3, 12, 10, 13], [11, 19, 3, 12, 20], [18, 15, 21, 19, 12, 10]],
+	# 塞拉弗（四翼）：光束、光牢、新星
+	[[5, 8, 0, 14], [16, 5, 1, 17, 8], [21, 16, 5, 17, 8, 1]],
 ]
 const BEAM_MOVES := [4, 5, 8, 11, 16]
 const MOVE_MOVES := [10, 15]
@@ -78,7 +84,7 @@ var player_pos_fn: Callable
 
 
 func setup(p_index: int, zone: int, p_tier: int, p_diff: Dictionary) -> void:
-	index = clampi(p_index, 0, 2)
+	index = clampi(p_index, 0, NAMES.size() - 1)
 	name_zh = NAMES[index]
 	title_zh = TITLES[index]
 	tier = p_tier
@@ -227,6 +233,12 @@ func _tint() -> Color:
 			return Color(0.61, 0.55, 1.0)
 		2:
 			return Color(1.0, 0.55, 0.35)
+		3:
+			return Color(0.55, 0.78, 1.0)
+		4:
+			return Color(0.55, 1.0, 0.82)
+		5:
+			return Color(1.0, 0.68, 0.42)
 		_:
 			return Color(1.0, 0.45, 0.6)
 

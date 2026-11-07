@@ -22,6 +22,15 @@ func _initialize() -> void:
 	_eq(failures, "UPGRADE_MAX_HULL", CFG.UPGRADE_MAX_HULL, 4)
 	_eq(failures, "UPGRADE_POOL", CFG.UPGRADE_POOL.size(), 10)
 	_eq(failures, "UPGRADE_SPEED_MAX", CFG.UPGRADE_SPEED_MAX, 1.30)
+	_eq(failures, "ZONE_QUOTA_BASE", CFG.ZONE_QUOTA_BASE, 28)
+	_eq(failures, "ZONE_QUOTA_STEP", CFG.ZONE_QUOTA_STEP, 4)
+	_eq(failures, "ZONE_MIN_TIME", CFG.ZONE_MIN_TIME, 40.0)
+	# 每星区一段 BGM：缺任一文件即视为资源不完整
+	var music_ok := 0
+	for i in range(1, 11):
+		if ResourceLoader.exists("res://assets/music/zone_%02d.ogg" % i):
+			music_ok += 1
+	_eq(failures, "music.zone_tracks", music_ok, 10)
 
 	_eq(failures, "pulse.speed", CFG.WEAPON_LINES["pulse"]["speed"], 1250.0)
 	_eq(failures, "prism.speed", CFG.WEAPON_LINES["prism"]["speed"], 560.0)
