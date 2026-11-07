@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.1 — 2026-11-07
+
+**fix / gameplay integrity + two-round polish**
+
+- 修复核心判定：敌弹命中、机体接触与擦弹原本写在 `_kill_enemy()` 内，只有敌机
+  死亡帧才结算，导致玩家对弹幕几乎无敌、擦弹成批误计。现拆为
+  `_resolve_player_hazards()` 每帧结算，与 web 版 `collide()` 对齐。
+- 最后一格船体被击穿时立即关闭“星区突破”草稿，避免结算被卡片遮挡。
+- 三选一卡池过滤已满级项（船体 4 / 护盾 3 / 移速 1.30），卡片显示当前 `×N` 层数。
+- `星区` chip 增加击杀进度条；结算新增 `擦弹 / 裂隙`。
+- 新增 headless 行为自检 `-selftest`（3 项断言）；数值 gate `checks=81`。
+- 性能：碎片绘制复用顶点并减少光晕层；子弹推进去掉每帧数组分配。
+- 打包优化：导出排除 `build/*`、`.trae/*`，APK 45 MB → 31 MB，
+  Windows 128 MB → 113 MB。
+- Android versionName `1.2.1` / code `13`；Windows FileVersion `1.2.1.0`。
+
 ## 1.2.0 — 2026-11-07
 
 **feat / gameplay innovation**

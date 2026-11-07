@@ -73,10 +73,10 @@ func _process(delta: float) -> void:
 func _state() -> String:
 	if bool(main.in_menu):
 		return "menu"
-	if bool(main.upgrade_pending):
-		return "upgrade"
 	if bool(main.game_over):
 		return "over"
+	if bool(main.upgrade_pending):
+		return "upgrade"
 	if bool(main.paused):
 		return "paused"
 	return "game"
@@ -205,8 +205,11 @@ func _draw_upgrade(vw: float, vh: float, st: float, sb: float, flash: String) ->
 				skin.icon_burst(self, ic, 14.0, ic_col, 4)
 			_:
 				skin.icon_burst(self, ic, 14.0, ic_col, 8)
-		skin.text(self, r.position + Vector2(70, 42), String(opt.get("name", "强化")),
-			18, skin.INK)
+		var label := String(opt.get("name", "强化"))
+		var stacks := int(opt.get("stacks", 0))
+		if stacks > 0:
+			label += "  ×%d" % stacks
+		skin.text(self, r.position + Vector2(70, 42), label, 18, skin.INK)
 		skin.text(self, r.position + Vector2(70, 68), String(opt.get("desc", "")),
 			11, Color(skin.INK_SOFT.r, skin.INK_SOFT.g, skin.INK_SOFT.b, 0.9))
 		skin.keycap(self, Rect2(r.end.x - 40.0, r.position.y + 12.0, 24.0, 22.0),
@@ -288,7 +291,7 @@ func _draw_results(vw: float, vh: float, st: float, sb: float, flash: String) ->
 	var rows := [
 		["最远星区", "%02d  %s" % [int(main.zone), UIMenu.ZONE_NAMES[clampi(int(main.zone) - 1, 0, 9)]]],
 		["击坠", "%d" % int(main.total_kills)],
-		["擦弹", "%d" % int(main.graze)],
+		["擦弹 / 裂隙", "%d / %d" % [int(main.graze), int(main.rift)]],
 		["最高分", "%d" % int(main.best_score)],
 	]
 	for i in range(4):

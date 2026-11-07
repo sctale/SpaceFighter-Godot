@@ -21,6 +21,7 @@ func _initialize() -> void:
 	_eq(failures, "UPGRADE_CARD_COUNT", CFG.UPGRADE_CARD_COUNT, 3)
 	_eq(failures, "UPGRADE_MAX_HULL", CFG.UPGRADE_MAX_HULL, 4)
 	_eq(failures, "UPGRADE_POOL", CFG.UPGRADE_POOL.size(), 10)
+	_eq(failures, "UPGRADE_SPEED_MAX", CFG.UPGRADE_SPEED_MAX, 1.30)
 
 	_eq(failures, "pulse.speed", CFG.WEAPON_LINES["pulse"]["speed"], 1250.0)
 	_eq(failures, "prism.speed", CFG.WEAPON_LINES["prism"]["speed"], 560.0)

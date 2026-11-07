@@ -13,6 +13,12 @@ const GAME_OVER_TAP_DELAY := 0.6
 # 判定半径仍是 4.6px（视觉远大于判定，标准弹幕手感）。敌机精灵机头朝下，无需旋转。
 const ART_EXTENT := 0.46
 const PLAYER_ART_RADIUS := 36.0
+# 碎片绘制复用同一组顶点，避免每帧为 30 枚碎片重新分配数组
+var mote_diamond := PackedVector2Array([
+	Vector2(0, -8.5), Vector2(5.5, 0), Vector2(0, 8.5), Vector2(-5.5, 0)])
+var mote_outline := PackedVector2Array([
+	Vector2(0, -8.5), Vector2(5.5, 0), Vector2(0, 8.5), Vector2(-5.5, 0),
+	Vector2(0, -8.5)])
 
 class Bullet:
 	var pos: Vector2
@@ -155,6 +161,10 @@ func _ready() -> void:
 	_load_best()
 	_spawn_visuals()
 	var args := OS.get_cmdline_user_args()
+	# headless 行为自检：`godot --headless --path . -- -selftest`
+	if args.has("-selftest"):
+		_run_selftest()
+		return
 	# 调试：`godot --path . -- -boss` 直接进 Boss 战（截图/验证用）
 	if args.has("-boss"):
 		in_menu = false
@@ -185,6 +195,16 @@ func _ready() -> void:
 		elif _shot_mode == "upgrade":
 			in_menu = false
 			_reset_game()
+			# 截图验收：预置层数，确保每张卡都能看到 ×N
+			upgrades["damage_mul"] = 1.48
+			upgrades["drone_rate"] = 1.75
+			upgrades["max_hull"] = 4.0
+			upgrades["nova_gain"] = 1.75
+			upgrades["overdrive_bonus"] = 4.5
+			upgrades["speed"] = 1.22
+			upgrades["crate_rate"] = 1.75
+			upgrades["break_mul"] = 1.75
+			upgrades["rift_gain"] = 2.0
 			_open_upgrade_draft()
 		elif _shot_mode == "upgrade_apply":
 			in_menu = false
@@ -274,6 +294,63 @@ func _save_best() -> void:
 	cfg.save("user://save.cfg")
 
 
+## 行为自检：确保判定不是"击杀帧才结算"的回归版本。
+func _run_selftest() -> void:
+	var failures := 0
+
+	# 1) 没有任何击杀时，贴脸弹幕也必须扣除船体
+	_reset_game()
+	player_shields = 0
+	player_invuln = 0.0
+	var b1 := Bullet.new(player_pos, Vector2.ZERO, 6.0, 1.0, 4.0, false,
+		Color.WHITE, "orb")
+	b1.prev = player_pos
+	enemy_bullets.append(b1)
+	_resolve_collisions()
+	if player_lives != 2:
+		failures += 1
+		print("SELFTEST_FAIL hazard lives=%d" % player_lives)
+
+	# 2) 命中半径之外、擦弹半径之内：计数 +1 且掉落 1 枚碎片
+	_reset_game()
+	player_shields = 0
+	player_invuln = 0.0
+	graze = 0
+	motes.clear()
+	var b2 := Bullet.new(player_pos + Vector2(14.0, 0.0), Vector2.ZERO, 6.0, 1.0,
+		4.0, false, Color.WHITE, "orb")
+	b2.prev = b2.pos
+	enemy_bullets.append(b2)
+	_resolve_collisions()
+	if graze != 1 or motes.size() != 1 or player_lives != 3:
+		failures += 1
+		print("SELFTEST_FAIL graze graze=%d motes=%d lives=%d"
+		% [graze, motes.size(), player_lives])
+
+	# 3) 最后一格船体被击穿：游戏结束且关闭突破草稿
+	_reset_game()
+	player_shields = 0
+	player_lives = 1
+	player_invuln = 0.0
+	upgrade_pending = true
+	upgrade_options = [CFG.UPGRADE_POOL[0]]
+	var b3 := Bullet.new(player_pos, Vector2.ZERO, 6.0, 1.0, 4.0, false,
+		Color.WHITE, "orb")
+	b3.prev = player_pos
+	enemy_bullets.append(b3)
+	_resolve_collisions()
+	if not game_over or upgrade_pending:
+		failures += 1
+		print("SELFTEST_FAIL draft game_over=%s pending=%s"
+		% [str(game_over), str(upgrade_pending)])
+
+	if failures == 0:
+		print("SELFTEST_OK n=3")
+	else:
+		print("SELFTEST_FAIL n=%d" % failures)
+	get_tree().quit(0 if failures == 0 else 1)
+
+
 func _player_spawn_bullet(pos: Vector2, vel: Vector2, props: Dictionary) -> void:
 	var b := Bullet.new(pos, vel, float(props["radius"]), float(props["damage"]),
 		float(props["life"]), true, props["tint"], String(props["kind"]))
@@ -316,6 +393,7 @@ func _process(delta: float) -> void:
 			score = 66800
 			zone = 5
 			graze = 88
+			rift = 32
 			total_kills = 120
 			best_score = 60000
 		if _shot_t > wait:
@@ -473,7 +551,7 @@ func _update_motes(delta: float) -> void:
 			pos += to_player.normalized() * CFG.MOTE_MAGNET_SPEED * delta
 		else:
 			pos += Vector2(m["vel"]) * delta
-			m["vel"] = Vector2(m["vel"]) * (1.0 - 1.8 * delta)
+			m["vel"] = Vector2(m["vel"]) * maxf(0.0, 1.0 - 1.8 * delta)
 		m["pos"] = pos
 		m["spin"] = float(m["spin"]) + delta * 5.0
 		if pos.distance_to(player_pos) < CFG.MOTE_COLLECT_RADIUS:
@@ -491,9 +569,52 @@ func _collect_mote() -> void:
 			Color.html("#8FF7EA"), 13)
 
 
+## 已满级/已满层的强化不再进入卡池，避免三选一出废卡。
+func _upgrade_available(u: Dictionary) -> bool:
+	match String(u.get("id", "")):
+		"hull":
+			return float(upgrades["max_hull"]) < float(CFG.UPGRADE_MAX_HULL)
+		"shield":
+			return player_shields < CFG.MAX_SHIELDS
+		"speed":
+			return float(upgrades["speed"]) < CFG.UPGRADE_SPEED_MAX
+	return true
+
+
+## 当前已叠加层数，用于卡片右上角 ×N 提示。
+func _upgrade_stacks(id: String) -> int:
+	match id:
+		"damage":
+			return int(roundf((float(upgrades["damage_mul"]) - 1.0) / CFG.UPGRADE_DAMAGE_STEP))
+		"drone":
+			return int(roundf((float(upgrades["drone_rate"]) - 1.0) / CFG.UPGRADE_DRONE_STEP))
+		"hull":
+			return int(upgrades["max_hull"]) - CFG.START_LIVES
+		"nova":
+			return int(roundf((float(upgrades["nova_gain"]) - 1.0) / CFG.UPGRADE_NOVA_STEP))
+		"overdrive":
+			return int(roundf(float(upgrades["overdrive_bonus"]) / CFG.UPGRADE_OVERDRIVE_STEP))
+		"speed":
+			return int(roundf((float(upgrades["speed"]) - 1.0) / CFG.UPGRADE_SPEED_STEP))
+		"crate":
+			return int(roundf((float(upgrades["crate_rate"]) - 1.0) / CFG.UPGRADE_CRATE_STEP))
+		"break":
+			return int(roundf((float(upgrades["break_mul"]) - 1.0) / CFG.UPGRADE_BREAK_STEP))
+		"rift":
+			return int(roundf((float(upgrades["rift_gain"]) - 1.0) / CFG.UPGRADE_RIFT_NOVA_STEP))
+	return 0
+
+
 func _roll_upgrades() -> void:
 	upgrade_options.clear()
-	var pool := CFG.UPGRADE_POOL.duplicate()
+	var pool: Array = []
+	for u in CFG.UPGRADE_POOL:
+		if _upgrade_available(u):
+			var copy: Dictionary = u.duplicate()
+			copy["stacks"] = _upgrade_stacks(String(u.get("id", "")))
+			pool.append(copy)
+	if pool.is_empty():
+		pool = CFG.UPGRADE_POOL.duplicate()
 	for i in range(mini(CFG.UPGRADE_CARD_COUNT, pool.size())):
 		var idx := randi() % pool.size()
 		upgrade_options.append(pool[idx])
@@ -527,7 +648,8 @@ func _choose_upgrade(index: int) -> void:
 		"overdrive":
 			upgrades["overdrive_bonus"] = float(upgrades["overdrive_bonus"]) + CFG.UPGRADE_OVERDRIVE_STEP
 		"speed":
-			upgrades["speed"] = minf(1.30, float(upgrades["speed"]) + CFG.UPGRADE_SPEED_STEP)
+			upgrades["speed"] = minf(CFG.UPGRADE_SPEED_MAX,
+				float(upgrades["speed"]) + CFG.UPGRADE_SPEED_STEP)
 		"crate":
 			upgrades["crate_rate"] = float(upgrades["crate_rate"]) + CFG.UPGRADE_CRATE_STEP
 		"break":
@@ -604,6 +726,11 @@ func _density_tier() -> int:
 
 func _zone_quota() -> int:
 	return 12 + zone * 4
+
+
+## 星区击杀进度 0..1，HUD 进度条使用。
+func zone_progress() -> float:
+	return clampf(float(zone_kills) / maxf(1.0, float(_zone_quota())), 0.0, 1.0)
 
 
 func _roster_pool() -> Array:
@@ -875,39 +1002,43 @@ func _apply_crate(kind: String) -> void:
 
 
 func _update_bullets(delta: float) -> void:
-	for arr in [player_bullets, enemy_bullets]:
-		for i in range(arr.size() - 1, -1, -1):
-			var b: Bullet = arr[i]
-			b.prev = b.pos
-			b.age += delta
-			# 水雷：速度按 exp(-3.8dt) 衰减到停住，引信到期炸 10 颗破片
-			if b.kind == "mine":
-				b.vel *= exp(-CFG.MINE_DRAG * delta)
-				if b.fuse > 0.0:
-					b.fuse -= delta
-					if b.fuse <= 0.0:
-						_burst_mine(b)
-						arr.remove_at(i)
-						continue
-			# 蜂群追踪：锁定最近敌机 1.45 秒后转直线
-			if b.homing and b.age > b.homing_delay and b.homing_time > 0.0:
-				var tgt := _nearest_enemy(b.pos)
-				if tgt != null:
-					var spd := b.vel.length()
-					var want := (tgt.pos - b.pos).normalized() * spd
-					b.vel = b.vel.lerp(want, clampf(CFG.SWARM_TURN_RATE * delta, 0.0, 1.0))
-					b.vel = b.vel.normalized() * spd
-				b.homing_time -= delta
-			# 波动弹：沿垂直方向叠一层正弦横摆
-			if b.wave > 0.0:
-				var perp := b.base_vel.normalized().orthogonal()
-				b.pos += b.vel * delta + perp * sin(b.age * CFG.WAVE_PHASE_RATE) * b.wave
-			else:
-				b.pos += b.vel * delta
-			b.life -= delta
-			if b.life <= 0.0 or b.pos.y < -40.0 or b.pos.y > view_size.y + 40.0 \
-					or b.pos.x < -40.0 or b.pos.x > view_size.x + 40.0:
-				arr.remove_at(i)
+	_advance_bullets(player_bullets, delta)
+	_advance_bullets(enemy_bullets, delta)
+
+
+func _advance_bullets(arr: Array, delta: float) -> void:
+	for i in range(arr.size() - 1, -1, -1):
+		var b: Bullet = arr[i]
+		b.prev = b.pos
+		b.age += delta
+		# 水雷：速度按 exp(-3.8dt) 衰减到停住，引信到期炸 10 颗破片
+		if b.kind == "mine":
+			b.vel *= exp(-CFG.MINE_DRAG * delta)
+			if b.fuse > 0.0:
+				b.fuse -= delta
+				if b.fuse <= 0.0:
+					_burst_mine(b)
+					arr.remove_at(i)
+					continue
+		# 蜂群追踪：锁定最近敌机 1.45 秒后转直线
+		if b.homing and b.age > b.homing_delay and b.homing_time > 0.0:
+			var tgt := _nearest_enemy(b.pos)
+			if tgt != null:
+				var spd := b.vel.length()
+				var want := (tgt.pos - b.pos).normalized() * spd
+				b.vel = b.vel.lerp(want, clampf(CFG.SWARM_TURN_RATE * delta, 0.0, 1.0))
+				b.vel = b.vel.normalized() * spd
+			b.homing_time -= delta
+		# 波动弹：沿垂直方向叠一层正弦横摆
+		if b.wave > 0.0:
+			var perp := b.base_vel.normalized().orthogonal()
+			b.pos += b.vel * delta + perp * sin(b.age * CFG.WAVE_PHASE_RATE) * b.wave
+		else:
+			b.pos += b.vel * delta
+		b.life -= delta
+		if b.life <= 0.0 or b.pos.y < -40.0 or b.pos.y > view_size.y + 40.0 \
+				or b.pos.x < -40.0 or b.pos.x > view_size.x + 40.0:
+			arr.remove_at(i)
 
 
 func _burst_mine(b: Bullet) -> void:
@@ -964,6 +1095,33 @@ func _resolve_collisions() -> void:
 					break
 		if consumed:
 			player_bullets.remove_at(bi)
+	_resolve_player_hazards()
+
+
+## 玩家受击 / 擦弹判定：每帧独立结算，不能放进击杀回调。
+## 对齐 web 版 collide()：先擦弹（命中半径之外），再命中，最后机体接触。
+func _resolve_player_hazards() -> void:
+	if player_invuln > 0.0:
+		return
+	for i in range(enemy_bullets.size() - 1, -1, -1):
+		var b: Bullet = enemy_bullets[i]
+		var d2 := _seg_point_d2(b.prev, b.pos, player_pos)
+		var hit_r := CFG.PLAYER_HIT_R + b.radius
+		var graze_r := CFG.PLAYER_GRAZE_R + b.radius
+		if not b.grazed and d2 <= graze_r * graze_r and d2 > hit_r * hit_r:
+			b.grazed = true
+			graze += 1
+			_gain_nova(CFG.NOVA_ON_GRAZE)
+			_spawn_mote(b.pos)
+		elif d2 <= hit_r * hit_r:
+			enemy_bullets.remove_at(i)
+			_player_hit()
+			return
+	for en: Enemy in enemies:
+		var rr: float = CFG.PLAYER_HIT_R + en.hit_r
+		if player_pos.distance_squared_to(en.pos) <= rr * rr:
+			_player_hit()
+			return
 
 
 func _kill_enemy(index: int, diff: Dictionary) -> void:
@@ -994,28 +1152,6 @@ func _kill_enemy(index: int, diff: Dictionary) -> void:
 			Color(1.0, 0.94, 0.72), 14)
 	_add_shake(5.0 if e.elite else 1.8, 0.26)
 
-	for i in range(enemy_bullets.size() - 1, -1, -1):
-		var b: Bullet = enemy_bullets[i]
-		var d2 := _seg_point_d2(b.prev, b.pos, player_pos)
-		var hit_r := CFG.PLAYER_HIT_R + b.radius
-		var graze_r := CFG.PLAYER_GRAZE_R + b.radius
-		if d2 <= graze_r * graze_r and not b.grazed:
-			b.grazed = true
-			graze += 1
-			_gain_nova(CFG.NOVA_ON_GRAZE)
-			_spawn_mote(b.pos)
-		if player_invuln <= 0.0 and d2 <= hit_r * hit_r:
-			enemy_bullets.remove_at(i)
-			_player_hit()
-			break
-
-	if player_invuln <= 0.0:
-		for en in enemies:
-			var rr: float = CFG.PLAYER_HIT_R + en.hit_r
-			if player_pos.distance_squared_to(en.pos) <= rr * rr:
-				_player_hit()
-				break
-
 
 func _player_hit() -> void:
 	sfx.play_hit()
@@ -1039,6 +1175,9 @@ func _player_hit() -> void:
 	if player_lives <= 0:
 		game_over = true
 		game_over_time = 0.0
+		# 死亡立即关闭突破草稿，避免结算被三选一卡片挡住
+		upgrade_pending = false
+		upgrade_options.clear()
 		_save_best()
 		sfx.play_boom()
 
@@ -1384,12 +1523,11 @@ func _draw_motes() -> void:
 		var pos := Vector2(m["pos"])
 		var spin := float(m["spin"])
 		var life_k := clampf(float(m["life"]) / CFG.MOTE_LIFE, 0.0, 1.0)
-		_blob(pos, 16.0, Color(0.45, 1.0, 0.92, 0.20 * life_k), 5)
+		if life_k > 0.35:
+			_blob(pos, 16.0, Color(0.45, 1.0, 0.92, 0.20 * life_k), 3)
 		draw_set_transform(pos, spin, Vector2.ONE)
-		var pts := PackedVector2Array([
-			Vector2(0, -8.5), Vector2(5.5, 0), Vector2(0, 8.5), Vector2(-5.5, 0)])
-		draw_colored_polygon(pts, Color(0.62, 1.0, 0.95, 0.98 * life_k))
-		draw_polyline(_closed(pts), Color(0.10, 0.10, 0.18, 0.60 * life_k), 1.8, true)
+		draw_colored_polygon(mote_diamond, Color(0.62, 1.0, 0.95, 0.98 * life_k))
+		draw_polyline(mote_outline, Color(0.10, 0.10, 0.18, 0.60 * life_k), 1.8, true)
 		draw_circle(Vector2(0, 0), 2.8, Color(1, 1, 1, 0.95 * life_k))
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 

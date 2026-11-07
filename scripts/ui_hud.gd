@@ -97,6 +97,8 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 		ci.draw_arc(zone_r.position + Vector2(16, 13), 8.0, 0.2, 2.4, 16,
 			Color(1, 1, 1, 0.55), 1.5, true)
 		skin.text(ci, zone_r.position + Vector2(30, 18), "星区 %02d" % int(main.zone), 11, skin.INK)
+		ci.draw_rect(Rect2(zone_r.position.x + 8.0, zone_r.end.y - 4.0,
+			(zone_r.size.x - 16.0) * float(main.zone_progress()), 2.5), skin.CYAN_DEEP)
 		var rift_r := Rect2(zone_r.end.x + 8.0, zone_r.position.y, 92.0, 26.0)
 		skin.panel(ci, rift_r, Color(1, 1, 1, 0.82), 10.0, skin.INK, 2.0, false)
 		skin.icon_burst(ci, rift_r.position + Vector2(16, 13), 6.5, skin.CYAN, 4)

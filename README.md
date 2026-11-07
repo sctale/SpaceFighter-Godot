@@ -1,7 +1,29 @@
-# Space Fighter — Godot 4.7.2 / v1.2.0
+# Space Fighter — Godot 4.7.2 / v1.2.1
 
 Migration of the retired Unity port, using `reference/web/www` (the original
 540x960 Canvas game) as the gameplay and numeric source of truth.
+
+## v1.2.1 gameplay integrity + two-round polish
+
+Two review/optimization rounds after v1.2.0. Correctness first, then build
+and readability polish.
+
+- **Per-frame player collision**: bullet-vs-player, body contact and grazing
+  were nested inside the enemy-death callback, so the player was effectively
+  invulnerable and graze fired only on kill frames. They now run in
+  `_resolve_player_hazards()` every frame, aligned with the web `collide()`.
+- **Death closes the draft**: a lethal hit can no longer leave the three-card
+  draft covering the results screen.
+- **No dead upgrade cards**: hull/shield/speed cards are filtered out at their
+  caps; each card shows its current `×N` stack.
+- **Zone progress bar** under the `星区` chip; results now report
+  `擦弹 / 裂隙`.
+- **Headless self-test**: `-selftest` asserts hit / graze+drop / death-closes-draft.
+- Android versionName `1.2.1` / code `13`; numeric gate `checks=81`.
+
+![v1.2.1 zone draft](docs/shots/ui_v121_upgrade.png)
+![v1.2.1 action](docs/shots/ui_v121_action.png)
+![v1.2.1 results](docs/shots/ui_v121_results.png)
 
 ## v1.2.0 gameplay innovation
 
@@ -77,7 +99,8 @@ graze had no mechanical payoff, and there was no inter-zone build agency.
 - [x] Playable core: keyboard + mouse/touch drag, pulse auto-fire, four enemy
       archetypes, aimed/fan/ring fire, swept collision, graze, score/lives,
       pause/restart, difficulty keys 1/2/3
-- [x] Numeric gate `tools/verify_numbers.gd` (**80 checks**, includes behaviour assertions)
+- [x] Numeric gate `tools/verify_numbers.gd` (**81 checks**) plus headless
+      `-selftest` behaviour assertions (`SELFTEST_OK n=3`)
 - [x] **Cel-shaded sprite art (v1.1.0)**: player + 12 enemy hulls + 3 bosses +
       drones + crates re-rendered in Blender into `assets/ships/` (94 PNGs),
       including hit-flash masks and boss rings. Drawn via the `ShipArt` contract
@@ -86,11 +109,11 @@ graze had no mechanical payoff, and there was no inter-zone build agency.
 - [x] **App icon (v1.1.0)**: cel-shaded 3/4 hero on a pastel nebula
       (`assets/icons/`), wired into the project icon, Windows exe icon and
       Android adaptive launcher icon.
-- [x] Windows release export: `build/windows/SpaceFighter.exe` (v1.2.0.0)
-- [x] Android APK: `SpaceFighter-Godot-v1.2.0.apk` (45 MB, portrait, target SDK
+- [x] Windows release export: `build/windows/SpaceFighter.exe` (v1.2.1.0)
+- [x] Android APK: `SpaceFighter-Godot-v1.2.1.apk` (31 MB, portrait, target SDK
       36, release-signed with the project keystore)
 - [x] On-device install verified: Android 36 emulator with hardware GPU
-      (1080x1920 and 1080x2400), versionName 1.2.0 / code 12, no black bars,
+      (1080x1920 and 1080x2400), versionName 1.2.1 / code 13, no black bars,
       touch controls work, 0 Godot script/shader errors
 - [x] Release signing: project keystore (CN=Space Fighter, O=sctale), v2/v3 verified
       (`apksigner verify --verbose`)
@@ -128,22 +151,33 @@ godot --headless --path D:\V-Coding\space-fighter-godot \
   --script res://tools/verify_numbers.gd
 ```
 
-Expected: `VERIFY_OK checks=80` and exit code 0.
+Expected: `VERIFY_OK checks=81` and exit code 0.
+
+## Behaviour self-test
+
+```bash
+godot --headless --path D:\V-Coding\space-fighter-godot -- -selftest
+```
+
+Expected: `SELFTEST_OK n=3` and exit code 0 (hit without kills, graze drop,
+death closes the upgrade draft).
 
 ## Export
 
 ```bash
-# Windows debug
+# Windows release (embedded PCK)
 godot --headless --path D:\V-Coding\space-fighter-godot \
-  --export-debug "Windows Desktop" build/windows/SpaceFighter.exe
+  --export-release "Windows Desktop" build/windows/SpaceFighter.exe
 
-# Android debug APK (requires Android SDK + JDK; Godot settings auto-detected both)
+# Android release APK (requires Android SDK + JDK; Godot auto-detects both)
 godot --headless --path D:\V-Coding\space-fighter-godot \
-  --export-debug "Android" build/android/SpaceFighter.apk
+  --export-release "Android" build/android/SpaceFighter-release.apk
 ```
 
-The APK is debug-signed with Godot's generated debug keystore. A release build
-needs an owned keystore before distribution.
+Both presets use `exclude_filter="reference/*,docs/*,build/*,.trae/*"`, so
+screenshots and build artifacts never enter the shipped packs. The APK is
+signed with the project keystore in `keystore/` (gitignored); verify with
+`apksigner verify --verbose`.
 
 ## Reference
 
@@ -157,7 +191,7 @@ port from it.
    runtime viewport may expand to any phone aspect (`CFG.VIEW`), but gameplay
    values stay in design pixels. Do not reintroduce the Unity 0.025 world scale.
 2. Player hit radius is **4.6 px**, graze radius **28 px**; the drawn hull is
-   deliberately much larger (32 px visual radius).
+   deliberately much larger (36 px visual radius).
 3. Use swept segment-circle collision for bullets; do not use per-frame point
    checks.
 4. Add a gate assertion before adding a new subsystem, then port the web logic.
