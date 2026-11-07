@@ -113,12 +113,7 @@ var enemies: Array = []
 var pointer_active := false
 var pointer_pos := Vector2.ZERO
 var drag_offset := Vector2.ZERO
-var spawn_timer := 1.0
-var wave_timer := 2.0
-var spawn_count := 0
 var zone := 1
-var zone_kills := 0
-var zone_time := 0.0
 var total_kills := 0
 var _tex_cache: Dictionary = {}
 var _keyart_cache: Dictionary = {}
@@ -149,6 +144,11 @@ var _shot_t := 0.0
 var _shot_taken := false
 var _demo_no_fire := false
 
+# 拆分出的职责模块（状态仍在 Main，模块负责结算逻辑）
+var waves: WaveDirector
+var collisions: CollisionSystem
+var upgrade_flow: UpgradeSystem
+
 
 func _ready() -> void:
 	randomize()
@@ -163,6 +163,9 @@ func _ready() -> void:
 	add_child(sfx)
 	music = MusicPlayer.new()
 	add_child(music)
+	waves = WaveDirector.new(self)
+	collisions = CollisionSystem.new(self)
+	upgrade_flow = UpgradeSystem.new(self)
 	_load_font()
 	_load_best()
 	_spawn_visuals()
@@ -201,7 +204,7 @@ func _ready() -> void:
 			_reset_game()
 			var kinds := ["drifter", "lancer", "orbiter", "bulwark", "sniper", "sidewinder"]
 			for i in range(6):
-				_spawn_enemy(kinds[i], Vector2(80.0 + (i % 3) * 180.0, 260.0 + (i / 3) * 180.0),
+				waves.spawn_enemy(kinds[i], Vector2(80.0 + (i % 3) * 180.0, 260.0 + (i / 3) * 180.0),
 					i == 0, "none")
 		elif _shot_mode == "upgrade":
 			in_menu = false
@@ -324,7 +327,7 @@ func _run_selftest() -> void:
 		Color.WHITE, "orb")
 	b1.prev = player_pos
 	enemy_bullets.append(b1)
-	_resolve_collisions()
+	collisions.resolve()
 	if player_lives != 2:
 		failures += 1
 		print("SELFTEST_FAIL hazard lives=%d" % player_lives)
@@ -339,7 +342,7 @@ func _run_selftest() -> void:
 		4.0, false, Color.WHITE, "orb")
 	b2.prev = b2.pos
 	enemy_bullets.append(b2)
-	_resolve_collisions()
+	collisions.resolve()
 	if graze != 1 or motes.size() != 1 or player_lives != 3:
 		failures += 1
 		print("SELFTEST_FAIL graze graze=%d motes=%d lives=%d"
@@ -356,7 +359,7 @@ func _run_selftest() -> void:
 		Color.WHITE, "orb")
 	b3.prev = player_pos
 	enemy_bullets.append(b3)
-	_resolve_collisions()
+	collisions.resolve()
 	if not game_over or upgrade_pending:
 		failures += 1
 		print("SELFTEST_FAIL draft game_over=%s pending=%s"
@@ -371,18 +374,18 @@ func _run_selftest() -> void:
 
 	# 5) 星区最短时长：击杀配额满但时间不足时，不能提前进 Boss
 	_reset_game()
-	zone_kills = _zone_quota()
-	zone_time = 0.0
-	_update_spawner(0.05)
+	waves.zone_kills = waves.quota()
+	waves.zone_time = 0.0
+	waves.tick(0.05)
 	if boss != null:
 		failures += 1
 		print("SELFTEST_FAIL pace early boss at 0s")
-	zone_time = CFG.ZONE_MIN_TIME - 0.2
-	_update_spawner(0.05)
+	waves.zone_time = CFG.ZONE_MIN_TIME - 0.2
+	waves.tick(0.05)
 	if boss != null:
 		failures += 1
-		print("SELFTEST_FAIL pace early boss at %.1fs" % zone_time)
-	_update_spawner(0.3)
+		print("SELFTEST_FAIL pace early boss at %.1fs" % waves.zone_time)
+	waves.tick(0.3)
 	if boss == null:
 		failures += 1
 		print("SELFTEST_FAIL pace no boss after %.1fs" % CFG.ZONE_MIN_TIME)
@@ -477,8 +480,8 @@ func _process(delta: float) -> void:
 	_update_crates(delta)
 	_update_bullets(delta)
 	_update_motes(delta)
-	_update_spawner(delta)
-	_resolve_collisions()
+	waves.tick(delta)
+	collisions.resolve()
 	queue_redraw()
 
 
@@ -556,16 +559,7 @@ func _update_economy(delta: float) -> void:
 
 
 func _reset_upgrades() -> void:
-	upgrades = {
-		"damage_mul": 1.0, "drone_rate": 1.0, "max_hull": float(CFG.START_LIVES),
-		"nova_gain": 1.0, "overdrive_bonus": 0.0, "speed": 1.0,
-		"crate_rate": 1.0, "break_mul": 1.0,
-		"rift_gain": 1.0, "rift_score": 1.0,
-	}
-	upgrade_pending = false
-	upgrade_options.clear()
-	rift = 0
-	motes.clear()
+	upgrade_flow.reset()
 
 
 func _gain_nova(amount: float) -> void:
@@ -612,109 +606,12 @@ func _collect_mote() -> void:
 			Color.html("#8FF7EA"), 13)
 
 
-## 已满级/已满层的强化不再进入卡池，避免三选一出废卡。
-func _upgrade_available(u: Dictionary) -> bool:
-	match String(u.get("id", "")):
-		"hull":
-			return float(upgrades["max_hull"]) < float(CFG.UPGRADE_MAX_HULL)
-		"shield":
-			return player_shields < CFG.MAX_SHIELDS
-		"speed":
-			return float(upgrades["speed"]) < CFG.UPGRADE_SPEED_MAX
-	return true
-
-
-## 当前已叠加层数，用于卡片右上角 ×N 提示。
-func _upgrade_stacks(id: String) -> int:
-	match id:
-		"damage":
-			return int(roundf((float(upgrades["damage_mul"]) - 1.0) / CFG.UPGRADE_DAMAGE_STEP))
-		"drone":
-			return int(roundf((float(upgrades["drone_rate"]) - 1.0) / CFG.UPGRADE_DRONE_STEP))
-		"hull":
-			return int(upgrades["max_hull"]) - CFG.START_LIVES
-		"nova":
-			return int(roundf((float(upgrades["nova_gain"]) - 1.0) / CFG.UPGRADE_NOVA_STEP))
-		"overdrive":
-			return int(roundf(float(upgrades["overdrive_bonus"]) / CFG.UPGRADE_OVERDRIVE_STEP))
-		"speed":
-			return int(roundf((float(upgrades["speed"]) - 1.0) / CFG.UPGRADE_SPEED_STEP))
-		"crate":
-			return int(roundf((float(upgrades["crate_rate"]) - 1.0) / CFG.UPGRADE_CRATE_STEP))
-		"break":
-			return int(roundf((float(upgrades["break_mul"]) - 1.0) / CFG.UPGRADE_BREAK_STEP))
-		"rift":
-			return int(roundf((float(upgrades["rift_gain"]) - 1.0) / CFG.UPGRADE_RIFT_NOVA_STEP))
-	return 0
-
-
-func _roll_upgrades() -> void:
-	upgrade_options.clear()
-	var pool: Array = []
-	for u in CFG.UPGRADE_POOL:
-		if _upgrade_available(u):
-			var copy: Dictionary = u.duplicate()
-			copy["stacks"] = _upgrade_stacks(String(u.get("id", "")))
-			pool.append(copy)
-	if pool.is_empty():
-		pool = CFG.UPGRADE_POOL.duplicate()
-	for i in range(mini(CFG.UPGRADE_CARD_COUNT, pool.size())):
-		var idx := randi() % pool.size()
-		upgrade_options.append(pool[idx])
-		pool.remove_at(idx)
-
-
 func _open_upgrade_draft() -> void:
-	_roll_upgrades()
-	upgrade_pending = true
-	player_invuln = maxf(player_invuln, 1.0)
-	_add_shake(8.0, 0.4)
+	upgrade_flow.open_draft()
 
 
 func _choose_upgrade(index: int) -> void:
-	if not upgrade_pending or index < 0 or index >= upgrade_options.size():
-		return
-	var u: Dictionary = upgrade_options[index]
-	match String(u.get("id", "")):
-		"damage":
-			upgrades["damage_mul"] = float(upgrades["damage_mul"]) + CFG.UPGRADE_DAMAGE_STEP
-		"drone":
-			upgrades["drone_rate"] = float(upgrades["drone_rate"]) + CFG.UPGRADE_DRONE_STEP
-		"hull":
-			upgrades["max_hull"] = minf(CFG.UPGRADE_MAX_HULL,
-				float(upgrades["max_hull"]) + 1.0)
-			player_lives = mini(int(upgrades["max_hull"]), player_lives + 1)
-		"shield":
-			player_shields = mini(CFG.MAX_SHIELDS, player_shields + 1)
-		"nova":
-			upgrades["nova_gain"] = float(upgrades["nova_gain"]) + CFG.UPGRADE_NOVA_STEP
-		"overdrive":
-			upgrades["overdrive_bonus"] = float(upgrades["overdrive_bonus"]) + CFG.UPGRADE_OVERDRIVE_STEP
-		"speed":
-			upgrades["speed"] = minf(CFG.UPGRADE_SPEED_MAX,
-				float(upgrades["speed"]) + CFG.UPGRADE_SPEED_STEP)
-		"crate":
-			upgrades["crate_rate"] = float(upgrades["crate_rate"]) + CFG.UPGRADE_CRATE_STEP
-		"break":
-			upgrades["break_mul"] = float(upgrades["break_mul"]) + CFG.UPGRADE_BREAK_STEP
-		"rift":
-			upgrades["rift_gain"] = float(upgrades["rift_gain"]) + CFG.UPGRADE_RIFT_NOVA_STEP
-			upgrades["rift_score"] = float(upgrades["rift_score"]) + CFG.UPGRADE_RIFT_SCORE_STEP
-	upgrade_pending = false
-	upgrade_options.clear()
-	zone = mini(10, zone + 1)
-	zone_kills = 0
-	zone_time = 0.0
-	if music != null:
-		music.play_zone(zone)
-	boss_cleared = false
-	boss_pending = false
-	player_invuln = maxf(player_invuln, CFG.INVULN_ON_ZONE_CHANGE)
-	crate_timer = minf(crate_timer, 4.0)
-	sfx.play_pick()
-	if fx != null:
-		fx.float_text(player_pos + Vector2(0, -46), "星区突破 · %s" % String(u.get("name", "")),
-			Color.html("#FFD27A"), 18)
+	upgrade_flow.choose(index)
 
 
 func _add_combo() -> void:
@@ -763,109 +660,12 @@ func _trigger_nova() -> void:
 		e.hp -= CFG.NOVA_ENEMY_DAMAGE
 		e.flash = 0.12
 		if e.hp <= 0.0:
-			_kill_enemy(i, CFG.DIFFICULTY[difficulty])
-
-
-func _density_tier() -> int:
-	return mini(3, maxi(0, zone - 1) / 5)
-
-
-func _zone_quota() -> int:
-	return CFG.ZONE_QUOTA_BASE + zone * CFG.ZONE_QUOTA_STEP
+			collisions.kill_enemy(i, CFG.DIFFICULTY[difficulty])
 
 
 ## 星区击杀进度 0..1，HUD 进度条使用。
 func zone_progress() -> float:
-	# 击杀配额与最短时长都要满足，进度条取两者较小值
-	var kills_k := float(zone_kills) / maxf(1.0, float(_zone_quota()))
-	var time_k := float(zone_time) / CFG.ZONE_MIN_TIME
-	return clampf(minf(kills_k, time_k), 0.0, 1.0)
-
-
-func _roster_pool() -> Array:
-	var pool := ["drifter", "wasp", "drifter", "lancer"]
-	if zone >= 2:
-		pool.append_array(["orbiter", "splitter"])
-	if zone >= 3:
-		pool.append_array(["rock", "sniper"])
-	if zone >= 4:
-		pool.append_array(["bulwark", "sidewinder"])
-	if zone >= 5:
-		pool.append_array(["minekeeper", "carrier"])
-	return pool
-
-
-func _update_spawner(delta: float) -> void:
-	# 打满本区配额且停留够最短时长才进 Boss；Boss 战期间停刷小怪
-	if boss != null:
-		return
-	zone_time += delta
-	if zone_kills >= _zone_quota() and zone_time >= CFG.ZONE_MIN_TIME:
-		_start_boss()
-		return
-	# 波次导演：每波一种队形，队形与机体随星区升级（替掉纯随机单刷）
-	wave_timer -= delta
-	if wave_timer > 0.0 or enemies.size() >= CFG.MAX_ENEMIES_ALIVE - 8:
-		return
-	var diff: Dictionary = CFG.DIFFICULTY[difficulty]
-	wave_timer = maxf(2.4, 4.4 - zone * 0.18) * float(diff["enemyRate"])
-	spawn_count += 1
-	_spawn_wave(spawn_count)
-
-
-## 队形：横排 / V 字 / 双列 / 集群 / 侧翼包抄，每 4 波夹一支精英小队。
-func _spawn_wave(n: int) -> void:
-	var pool := _roster_pool()
-	var kind: String = pool[randi() % pool.size()]
-	var elite_wave := n % 4 == 0
-	var count := 3 + mini(4, zone / 2)
-	var affix := "none"
-	if not elite_wave and randf() < CFG.AFFIX_BASE_CHANCE + minf(CFG.AFFIX_MAX_EXTRA, zone * 0.02):
-		affix = ["armored", "rapid", "volatile"][randi() % 3]
-	match n % 5:
-		0:  # 横排
-			for i in range(count):
-				var x := 90.0 + i * (view_size.x - 180.0) / maxf(1.0, count - 1.0)
-				_spawn_enemy(kind, Vector2(x, -40.0 - absf(i - (count - 1) * 0.5) * 18.0),
-					elite_wave and i == count / 2, affix)
-		1:  # V 字
-			for i in range(count):
-				var off := i - (count - 1) * 0.5
-				_spawn_enemy(kind, Vector2(view_size.x * 0.5 + off * 62.0, -40.0 - absf(off) * 34.0),
-					elite_wave and absf(off) < 0.6, affix)
-		2:  # 双列
-			for i in range(count):
-				var side := -1.0 if i % 2 == 0 else 1.0
-				var row := i / 2
-				_spawn_enemy(kind, Vector2(view_size.x * 0.5 + side * 120.0, -40.0 - row * 52.0),
-					elite_wave and i < 2, affix)
-		3:  # 集群
-			for i in range(count + 1):
-				_spawn_enemy(kind, Vector2(randf_range(70.0, view_size.x - 70.0), -40.0 - i * 26.0),
-					elite_wave and i == 0, affix)
-		_:  # 侧翼包抄
-			for i in range(count):
-				var side := -1.0 if i < count * 0.5 else 1.0
-				_spawn_enemy(kind, Vector2(view_size.x * 0.5 + side * (150.0 + i * 16.0), -40.0 - (i % 2) * 30.0),
-					elite_wave and i == 0, affix)
-
-
-func _spawn_enemy(kind: String, pos: Vector2, elite := false, affix := "none",
-		hp_frac := 1.0, entry_delay := 0.0) -> void:
-	if not CFG.ENEMY_TYPES.has(kind):
-		return
-	var e := Enemy.new()
-	e.setup(kind, CFG.ENEMY_TYPES[kind], pos, zone, _density_tier(), elite, affix, hp_frac)
-	e.entry_delay = entry_delay
-	e.spawn_bullet = _enemy_spawn_bullet
-	e.spawn_child = _spawn_child
-	e.player_pos_fn = _player_pos
-	enemies.append(e)
-
-
-func _spawn_child(kind: String, pos: Vector2) -> void:
-	if enemies.size() < 38:
-		_spawn_enemy(kind, pos, false, "none", 1.0, CFG.CARRIER_CHILD_ENTRY_DELAY)
+	return waves.progress()
 
 
 func _player_pos() -> Vector2:
@@ -899,9 +699,9 @@ func _update_enemies(delta: float) -> void:
 func _start_boss() -> void:
 	boss = Boss.new()
 	# 六台 Boss 按星区轮换（第 7 星区起回到第 1 台）
-	boss.setup((zone - 1) % 6, zone, _density_tier(), CFG.DIFFICULTY[difficulty])
+	boss.setup((zone - 1) % 6, zone, waves.density_tier(), CFG.DIFFICULTY[difficulty])
 	boss.spawn_bullet = _enemy_spawn_bullet
-	boss.spawn_child = _spawn_child
+	boss.spawn_child = waves.spawn_child
 	boss.player_pos_fn = _player_pos
 	boss_pending = true
 
@@ -916,7 +716,7 @@ func _update_boss(delta: float) -> void:
 		var dx := (player_pos.x - boss.pos.x) / boss.contact_rx()
 		var dy := (player_pos.y - boss.pos.y) / boss.contact_ry()
 		if dx * dx + dy * dy <= 1.0:
-			_player_hit()
+			collisions.player_hit()
 	if boss.dying and boss.die_t > 1.2:
 		score += int(roundf(3000.0 * float(CFG.DIFFICULTY[difficulty]["scoreMul"]) * multiplier))
 		sfx.play_boom()
@@ -926,7 +726,7 @@ func _update_boss(delta: float) -> void:
 		_add_shake(15.0, 0.55)
 		boss = null
 		boss_cleared = true
-		zone_kills = 0
+		waves.zone_kills = 0
 		enemy_bullets.clear()
 		_open_upgrade_draft()
 
@@ -1104,146 +904,7 @@ func _burst_mine(b: Bullet) -> void:
 			5.0, 1.0, 4.0, false, b.tint, "shard"))
 
 
-func _resolve_collisions() -> void:
-	var diff: Dictionary = CFG.DIFFICULTY[difficulty]
-
-	for bi in range(player_bullets.size() - 1, -1, -1):
-		var b: Bullet = player_bullets[bi]
-		var consumed := false
-		# Boss 判定：椭圆（size×1.02 / ×0.82），棱镜对巨构 +18%
-		if boss != null and boss.entered and not boss.dying:
-			var bdx := (b.pos.x - boss.pos.x) / (boss.hit_rx() + b.radius)
-			var bdy := (b.pos.y - boss.pos.y) / (boss.hit_ry() + b.radius)
-			if bdx * bdx + bdy * bdy <= 1.0:
-				var bdmg := b.damage * float(upgrades.get("damage_mul", 1.0)) \
-					* float(upgrades.get("break_mul", 1.0)) \
-					* (CFG.PRISM_BOSS_BONUS if b.kind == "lance" else 1.0)
-				if boss.take_damage(bdmg):
-					sfx.play_hit()
-				boss.damage_flash()
-				if fx != null:
-					fx.hit(b.pos, Color.html("#FFF0C2"))
-				score += int(roundf(10.0 * float(diff["scoreMul"])))
-				if b.pierce_left > 0:
-					b.pierce_left -= 1
-				else:
-					player_bullets.remove_at(bi)
-					continue
-		for ei in range(enemies.size() - 1, -1, -1):
-			var e: Enemy = enemies[ei]
-			if b.hit_enemies.has(e):
-				continue
-			var rr := e.hit_r + b.radius
-			if _seg_point_d2(b.prev, b.pos, e.pos) <= rr * rr:
-				e.hp -= b.damage * e.damage_taken_mul * float(upgrades.get("damage_mul", 1.0))
-				e.flash = 0.08
-				if fx != null:
-					fx.hit(b.pos, Color(1.0, 0.92, 0.68))
-				b.hit_enemies.append(e)
-				if e.hp <= 0.0:
-					_kill_enemy(ei, diff)
-				if b.pierce_left > 0:
-					b.pierce_left -= 1
-				else:
-					consumed = true
-					break
-		if consumed:
-			player_bullets.remove_at(bi)
-	_resolve_player_hazards()
-
-
-## 玩家受击 / 擦弹判定：每帧独立结算，不能放进击杀回调。
-## 对齐 web 版 collide()：先擦弹（命中半径之外），再命中，最后机体接触。
-func _resolve_player_hazards() -> void:
-	if player_invuln > 0.0:
-		return
-	for i in range(enemy_bullets.size() - 1, -1, -1):
-		var b: Bullet = enemy_bullets[i]
-		var d2 := _seg_point_d2(b.prev, b.pos, player_pos)
-		var hit_r := CFG.PLAYER_HIT_R + b.radius
-		var graze_r := CFG.PLAYER_GRAZE_R + b.radius
-		if not b.grazed and d2 <= graze_r * graze_r and d2 > hit_r * hit_r:
-			b.grazed = true
-			graze += 1
-			_gain_nova(CFG.NOVA_ON_GRAZE)
-			_spawn_mote(b.pos)
-		elif d2 <= hit_r * hit_r:
-			enemy_bullets.remove_at(i)
-			_player_hit()
-			return
-	for en: Enemy in enemies:
-		var rr: float = CFG.PLAYER_HIT_R + en.hit_r
-		if player_pos.distance_squared_to(en.pos) <= rr * rr:
-			_player_hit()
-			return
-
-
-func _kill_enemy(index: int, diff: Dictionary) -> void:
-	var e: Enemy = enemies[index]
-	score += int(roundf(e.score_value * float(diff["scoreMul"]) * multiplier))
-	_gain_nova(CFG.NOVA_ON_ELITE_KILL if e.elite else CFG.NOVA_ON_KILL)
-	_add_combo()
-	total_kills += 1
-	zone_kills += 1
-	var at := e.pos
-	var was_volatile := e.affix == "volatile"
-	var was_splitter := e.kind == "splitter"
-	enemies.remove_at(index)
-	# 分裂体留下半血幼体；挥发机炸出一圈幼体
-	if was_splitter:
-		for s in [-1.0, 1.0]:
-			_spawn_enemy("shardling", at + Vector2(s * 14.0, 0.0), false, "none", CFG.SPLITTER_CHILD_HP_FRAC)
-	elif was_volatile:
-		for i in range(CFG.VOLATILE_SPLIT):
-			var a := TAU * float(i) / CFG.VOLATILE_SPLIT
-			_spawn_enemy("shardling", at + Vector2(cos(a), sin(a)) * 18.0)
-	if e.elite:
-		sfx.play_boom()
-	if fx != null:
-		var col := _html_color(String(e.def.get("color", "#ff6f91")))
-		fx.explode(at, col, e.size, e.elite)
-		fx.float_text(at + Vector2(0, -e.size * 0.7), "+%d" % int(e.score_value),
-			Color(1.0, 0.94, 0.72), 14)
-	_add_shake(5.0 if e.elite else 1.8, 0.26)
-
-
-func _player_hit() -> void:
-	sfx.play_hit()
-	if fx != null:
-		fx.explode(player_pos, Color.html("#FF6B7A"), 34.0, true)
-	_add_shake(10.0, 0.36)
-	# 护盾优先，掉了只丢一层；护盾耗尽才吃船体
-	if player_shields > 0:
-		player_shields -= 1
-		player_invuln = CFG.INVULN_AFTER_SHIELD
-		_gain_nova(CFG.NOVA_ON_SHIELD_BREAK)
-	else:
-		player_lives -= 1
-		player_invuln = CFG.INVULN_AFTER_HULL_HIT
-		_gain_nova(CFG.NOVA_ON_HULL_HIT)
-		combo = 0
-		multiplier = 1
-		combo_timer = 0.0
-	enemy_bullets.clear()
-	weapons.active().charge = maxf(0.0, weapons.active().charge - CFG.HIT_CHARGE_PENALTY)
-	if player_lives <= 0:
-		game_over = true
-		game_over_time = 0.0
-		# 死亡立即关闭突破草稿，避免结算被三选一卡片挡住
-		upgrade_pending = false
-		upgrade_options.clear()
-		_save_best()
-		sfx.play_boom()
-
-
-func _seg_point_d2(a: Vector2, b: Vector2, p: Vector2) -> float:
-	var ab := b - a
-	var len2 := ab.length_squared()
-	var t := 0.0
-	if len2 > 0.0:
-		t = clampf((p - a).dot(ab) / len2, 0.0, 1.0)
-	var q := a + ab * t
-	return p.distance_squared_to(q)
+## 碰撞与受击结算已拆分到 CollisionSystem。
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -1414,8 +1075,7 @@ func _to_menu() -> void:
 	combo = 0
 	multiplier = 1
 	zone = 1
-	zone_kills = 0
-	zone_time = 0.0
+	waves.reset()
 	total_kills = 0
 	player_bullets.clear()
 	enemy_bullets.clear()
@@ -1448,12 +1108,8 @@ func _reset_game() -> void:
 	player_bullets.clear()
 	enemy_bullets.clear()
 	enemies.clear()
-	spawn_timer = 1.0
-	wave_timer = 2.0
-	spawn_count = 0
 	zone = 1
-	zone_kills = 0
-	zone_time = 0.0
+	waves.reset()
 	total_kills = 0
 	pointer_active = false
 	weapons = WeaponSystem.new()

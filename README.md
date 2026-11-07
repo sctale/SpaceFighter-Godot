@@ -1,7 +1,23 @@
-# Space Fighter — Godot 4.7.2 / v1.3.1
+# Space Fighter — Godot 4.7.2 / v1.3.2
 
 Migration of the retired Unity port, using `reference/web/www` (the original
 540x960 Canvas game) as the gameplay and numeric source of truth.
+
+## v1.3.2 main.gd module split
+
+Acting on the GS review suggestion, three responsibilities moved out of the
+1.6k-line `main.gd` without changing gameplay:
+
+- `WaveDirector` (105 lines): zone quota, 40 s minimum dwell, wave formations,
+  enemy factory, boss trigger.
+- `CollisionSystem` (140 lines): player bullets vs enemies/boss, per-frame
+  player hazards/graze, kill rewards, player hit/death.
+- `UpgradeSystem` (113 lines): draft pool filtering, ×N stacks, three-card roll
+  and upgrade application.
+- `main.gd` is now 1306 lines and keeps only orchestration, player/skills,
+  crates/drones, input and drawing.
+- Behavior unchanged: gate `checks=85`, selftest `n=5`, desktop/Android
+  screenshots, boss draft → next-zone flow all re-verified.
 
 ## v1.3.1 GS review performance pass
 
@@ -148,11 +164,11 @@ graze had no mechanical payoff, and there was no inter-zone build agency.
 - [x] **App icon (v1.1.0)**: cel-shaded 3/4 hero on a pastel nebula
       (`assets/icons/`), wired into the project icon, Windows exe icon and
       Android adaptive launcher icon.
-- [x] Windows release export: `build/windows/SpaceFighter.exe` (v1.3.1.0)
-- [x] Android APK: `SpaceFighter-Godot-v1.3.1.apk` (portrait, target SDK
+- [x] Windows release export: `build/windows/SpaceFighter.exe` (v1.3.2.0)
+- [x] Android APK: `SpaceFighter-Godot-v1.3.2.apk` (portrait, target SDK
       36, release-signed with the project keystore)
 - [x] On-device install verified: Android 36 emulator with hardware GPU
-      (1080x1920 and 1080x2400), versionName 1.3.1 / code 15, no black bars,
+      (1080x1920 and 1080x2400), versionName 1.3.2 / code 16, no black bars,
       touch controls work, 0 Godot script/shader errors
 - [x] Release signing: project keystore (CN=Space Fighter, O=sctale), v2/v3 verified
       (`apksigner verify --verbose`)

@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.2 — 2026-11-07
+
+**refactor / main.gd module split**
+
+- 按 GS 评审建议拆分 `main.gd`（1614 → 1306 行）：
+  - `WaveDirector`：星区配额、40 秒最短停留、队形生成、敌机工厂、Boss 触发。
+  - `CollisionSystem`：玩家弹 vs 敌机/Boss、每帧受击/擦弹、击杀奖励、玩家死亡。
+  - `UpgradeSystem`：卡池过滤、×N 层数、三选一抽卡与应用。
+- 行为保持不变：`VERIFY_OK checks=85`、`SELFTEST_OK n=5`、桌面/Android 截图、
+  Boss → 突破 → 下一星区流程复验通过。
+- Android versionName `1.3.2` / code `16`；Windows FileVersion `1.3.2.0`。
+
 ## 1.3.1 — 2026-11-07
 
 **perf / GS review pass**
