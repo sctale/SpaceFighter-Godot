@@ -2,7 +2,6 @@ extends Node2D
 
 const CFG := preload("res://scripts/game_config.gd")
 
-const PLAYER_FIRE_LEVEL := 2
 const PLAYER_BULLET_RADIUS := 5.0
 const ENEMY_BULLET_RADIUS := 6.0
 const GAME_OVER_TAP_DELAY := 0.6
@@ -62,7 +61,6 @@ var player_lives := 3
 var player_invuln := 0.0
 var player_bank := 0.0
 var player_last_dir := 0.0
-var fire_timer := 0.0
 
 
 # 武器与玩家生存/技能（迁移C）
@@ -91,6 +89,7 @@ var boss_pending := false
 var boss_cleared := false
 var crates: Array = []
 var crate_timer := 16.0
+var crate_drought := 0
 var drones: Array = []
 
 var score := 0
@@ -134,6 +133,10 @@ var ui: UIOverlay
 var fx: FXLayer
 var shake := 0.0
 var shake_t := 0.0
+# 手感层：打击停顿（冻结）与慢镜（拖慢），对齐原版 Freeze/Slow 常量
+var hitstop := 0.0
+var slowmo_t := 0.0
+var slowmo_scale := 1.0
 # UI 显示用插值：分数滚动、Boss 血条平滑
 var display_score := 0.0
 var display_boss_hp := 1.0
@@ -469,18 +472,28 @@ func _process(delta: float) -> void:
 		shake_t = maxf(0.0, shake_t - delta)
 		if shake_t <= 0.0:
 			shake = 0.0
-	player_invuln = maxf(0.0, player_invuln - delta)
-	_update_skills(delta)
-	_update_economy(delta)
-	_update_player(delta)
-	_update_player_fire(delta)
-	_update_enemies(delta)
-	_update_boss(delta)
-	_update_drones(delta)
-	_update_crates(delta)
-	_update_bullets(delta)
-	_update_motes(delta)
-	waves.tick(delta)
+	# 手感层：hitstop 冻结、slowmo 拖慢；只作用于世界更新，UI/震屏仍走真实时间
+	var dt := delta
+	if hitstop > 0.0:
+		hitstop = maxf(0.0, hitstop - delta)
+		dt = 0.0
+	elif slowmo_t > 0.0:
+		slowmo_t = maxf(0.0, slowmo_t - delta)
+		dt = delta * slowmo_scale
+		if slowmo_t <= 0.0:
+			slowmo_scale = 1.0
+	player_invuln = maxf(0.0, player_invuln - dt)
+	_update_skills(dt)
+	_update_economy(dt)
+	_update_player(dt)
+	_update_player_fire(dt)
+	_update_enemies(dt)
+	_update_boss(dt)
+	_update_drones(dt)
+	_update_crates(dt)
+	_update_bullets(dt)
+	_update_motes(dt)
+	waves.tick(dt)
 	collisions.resolve()
 	queue_redraw()
 
@@ -495,6 +508,17 @@ func _shake_offset() -> Vector2:
 		return Vector2.ZERO
 	var k := shake * clampf(shake_t / 0.24, 0.0, 1.0)
 	return Vector2(randf_range(-k, k), randf_range(-k, k))
+
+
+## 打击停顿：把世界冻结 t 秒（关键命中/Boss 破防/星爆）。
+func _feel_freeze(t: float) -> void:
+	hitstop = maxf(hitstop, t)
+
+
+## 慢镜：以 scale 倍速拖世界 dur 秒（受创/星爆/Boss 崩解）。
+func _feel_slow(scale: float, dur: float) -> void:
+	slowmo_scale = scale
+	slowmo_t = maxf(slowmo_t, dur)
 
 
 func _update_player(delta: float) -> void:
@@ -651,6 +675,8 @@ func _trigger_nova() -> void:
 	if fx != null:
 		fx.nova(player_pos)
 	_add_shake(13.0, 0.45)
+	_feel_freeze(CFG.FREEZE_NOVA)
+	_feel_slow(CFG.SLOW_NOVA_SCALE, CFG.SLOW_NOVA_DUR)
 	# 清屏敌弹并造成伤害
 	var cleared := enemy_bullets.size()
 	score += cleared * CFG.NOVA_SCORE_PER_CLEARED_BULLET
@@ -719,11 +745,23 @@ func _update_boss(delta: float) -> void:
 			collisions.player_hit()
 	if boss.dying and boss.die_t > 1.2:
 		score += int(roundf(3000.0 * float(CFG.DIFFICULTY[difficulty]["scoreMul"]) * multiplier))
+		# 过关结算：基础 + 星区 + 无伤奖励（对齐 web Clear* 常量）
+		var diff: Dictionary = CFG.DIFFICULTY[difficulty]
+		var bonus := int(roundf((CFG.CLEAR_BASE_SCORE + CFG.CLEAR_BASE_PER_SECTOR * zone)
+			* float(diff["scoreMul"])))
+		if player_lives >= CFG.START_LIVES:
+			bonus += int(CFG.CLEAR_NO_HIT_BASE + CFG.CLEAR_NO_HIT_PER_SECTOR * zone)
+		bonus += int(CFG.SECTOR_COMPENSATION_PER_ZONE * zone)
+		score += bonus
+		if fx != null:
+			fx.float_text(boss.pos + Vector2(0, -40), "过关 +%d" % bonus, Color(1.0, 0.94, 0.72), 16)
 		sfx.play_boom()
 		if fx != null:
 			fx.explode(boss.pos, Color.html("#FFB3D9"), boss.size * 1.6, true)
 			fx.nova(boss.pos)
 		_add_shake(15.0, 0.55)
+		_feel_freeze(CFG.FREEZE_BOSS_DIE)
+		_feel_slow(CFG.SLOW_BOSS_DIE_SCALE, CFG.SLOW_BOSS_DIE_DUR)
 		boss = null
 		boss_cleared = true
 		waves.zone_kills = 0
@@ -813,6 +851,16 @@ func _spawn_crate() -> void:
 	# 第二条武器线没解锁时，补给箱优先掉落棱镜，保证玩家在本局能换机
 	if weapons.unlocked_count() < 2 and not weapons.line("prism").unlocked:
 		kind = "prism"
+	# 保底：连续 PITY_THRESHOLD 箱没出成长类就强制给一个（对齐 web PityThreshold）
+	crate_drought += 1
+	if crate_drought >= CFG.PITY_THRESHOLD:
+		kind = ["weapon", "drone", "life", "shield"][randi() % 4]
+	if kind == "weapon" or kind == "drone" or kind == "life" or kind == "shield":
+		crate_drought = 0
+	# 长时间没换线时概率掉换线箱（对齐 web SwapCrateChance）
+	if weapons.unlocked_count() >= 2 and swap_idle >= CFG.SWAP_IDLE_FOR_SWAP_CRATE \
+			and randf() < CFG.SWAP_CRATE_CHANCE:
+		kind = "swap"
 	var c := Crate.new()
 	c.setup(Vector2(randf_range(60.0, view_size.x - 60.0), -30.0), kind)
 	crates.append(c)
@@ -1097,7 +1145,6 @@ func _reset_game() -> void:
 	player_lives = int(upgrades["max_hull"])
 	player_invuln = CFG.INVULN_ON_SPAWN
 	player_bank = 0.0
-	fire_timer = 0.0
 	score = 0
 	display_score = 0.0
 	display_boss_hp = 1.0
@@ -1128,6 +1175,7 @@ func _reset_game() -> void:
 	boss_cleared = false
 	crates.clear()
 	crate_timer = 16.0
+	crate_drought = 0
 	drones.clear()
 	if music != null:
 		music.play_zone(1)

@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.3 — 2026-11-10
+
+**fix / 评审修复 + 手感层接回**
+
+- 修俯冲敌机渲染颠倒：`enemy.gd` 朝向改为 `v.angle()−π/2`（机头朝下精灵对准速度方向）。
+- 接回原版手感层：打击停顿（Freeze*）与慢镜（Slow*） now 生效——精英击破/Boss 破防/护盾破/星爆/Boss 崩解触发冻结，受创/星爆/Boss 死触发慢镜。
+- 相位机制：冲刺期间擦身敌弹被消除，换分与星爆（Phase* 常量接回）。
+- 过关结算：Boss 击破追加 基础+星区+无伤+星区补偿 奖励（Clear* 常量接回）。
+- 补给保底：连续 PITY_THRESHOLD 箱无成长类强制掉落；长时间未换线概率掉换线箱。
+- 清理死代码：main.gd 的 fire_timer / PLAYER_FIRE_LEVEL。
+- 门禁 `checks=85`、headless `SELFTEST_OK n=5` 保持通过。
+- Android versionName `1.3.3` / code `17`。
+
+
 ## 1.3.2 — 2026-11-07
 
 **refactor / main.gd module split**

@@ -29,6 +29,7 @@ func resolve() -> void:
 					* (CFG.PRISM_BOSS_BONUS if b.kind == "lance" else 1.0)
 				if m.boss.take_damage(bdmg):
 					m.sfx.play_hit()
+					m._feel_freeze(CFG.FREEZE_HIT)
 				m.boss.damage_flash()
 				if m.fx != null:
 					m.fx.hit(b.pos, m._html_color("#FFF0C2"))
@@ -64,6 +65,15 @@ func resolve() -> void:
 ## 玩家受击 / 擦弹判定：每帧独立结算，不能放进击杀回调。
 ## 对齐 web 版 collide()：先擦弹（命中半径之外），再命中，最后机体接触。
 func resolve_player_hazards() -> void:
+	# 相位（冲刺期间）：擦身敌弹被消除，换分与星爆（对齐 web Phase* 常量）
+	if m.dash_t > 0.0:
+		for i in range(m.enemy_bullets.size() - 1, -1, -1):
+			var pb = m.enemy_bullets[i]
+			if pb.pos.distance_to(m.player_pos) <= CFG.PHASE_RADIUS + pb.radius:
+				m.enemy_bullets.remove_at(i)
+				m.score += CFG.PHASE_SCORE_PER_BULLET
+				m._gain_nova(CFG.PHASE_NOVA_PER_BULLET)
+				m._spawn_mote(pb.pos)
 	if m.player_invuln > 0.0:
 		return
 	for i in range(m.enemy_bullets.size() - 1, -1, -1):
@@ -109,6 +119,7 @@ func kill_enemy(index: int, diff: Dictionary) -> void:
 			m.waves.spawn_enemy("shardling", at + Vector2(cos(a), sin(a)) * 18.0)
 	if e.elite:
 		m.sfx.play_boom()
+		m._feel_freeze(CFG.FREEZE_KILL)
 	if m.fx != null:
 		var col: Color = m._html_color(String(e.def.get("color", "#ff6f91")))
 		m.fx.explode(at, col, e.size, e.elite)
@@ -127,10 +138,12 @@ func player_hit() -> void:
 		m.player_shields -= 1
 		m.player_invuln = CFG.INVULN_AFTER_SHIELD
 		m._gain_nova(CFG.NOVA_ON_SHIELD_BREAK)
+		m._feel_freeze(CFG.FREEZE_HIT)
 	else:
 		m.player_lives -= 1
 		m.player_invuln = CFG.INVULN_AFTER_HULL_HIT
 		m._gain_nova(CFG.NOVA_ON_HULL_HIT)
+		m._feel_slow(CFG.SLOW_HIT_SCALE, CFG.SLOW_HIT_DUR)
 		m.combo = 0
 		m.multiplier = 1
 		m.combo_timer = 0.0

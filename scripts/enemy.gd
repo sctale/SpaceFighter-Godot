@@ -151,7 +151,9 @@ func _move(dt: float) -> void:
 					dive_vel = (t - pos).normalized() * speed * CFG.DIVE_SPEED_MUL
 					dive_locked = true
 				pos += dive_vel * dt
-				turn = dive_vel.angle() + PI / 2.0
+				# 精灵机头朝下（+Y，自身角 π/2）；要对准速度方向需旋转 v.angle()−π/2。
+				# 之前写 +π/2 会让俯冲机倒置（头朝上）。
+				turn = dive_vel.angle() - PI / 2.0
 			else:
 				pos.y += CFG.DIVE_SLOW_SPEED * dt
 		"hover":
