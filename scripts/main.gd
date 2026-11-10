@@ -88,7 +88,7 @@ var boss: Boss = null
 var boss_pending := false
 var boss_cleared := false
 var crates: Array = []
-var crate_timer := 16.0
+var crate_timer := 8.0
 var crate_drought := 0
 var drones: Array = []
 
@@ -189,6 +189,10 @@ func _ready() -> void:
 		in_menu = false
 		_reset_game()
 		_start_boss()
+	if args.has("-play"):
+		# 调试：直接开局（截图/长跑验证用）
+		in_menu = false
+		_reset_game()
 	if args.has("-shot"):
 		var idx := args.find("-shot")
 		if idx + 1 < args.size():
@@ -205,6 +209,16 @@ func _ready() -> void:
 				boss_idx = int(_shot_mode.substr(4)) - 1
 			zone = boss_idx + 1
 			_start_boss()
+		elif _shot_mode == "crates":
+			# 补给箱陈列截图（验证掉落物在中屏且可辨识）
+			in_menu = false
+			_reset_game()
+			var demo_kinds := ["weapon", "prism", "drone", "life", "reflect"]
+			for i in range(demo_kinds.size()):
+				var c := Crate.new()
+				c.setup(Vector2(view_size.x * (0.18 + i * 0.16), view_size.y * 0.55),
+					String(demo_kinds[i]))
+				crates.append(c)
 		elif _shot_mode == "victory":
 			# 终局胜利结算截图
 			in_menu = false
@@ -901,7 +915,7 @@ func _update_crates(delta: float) -> void:
 	for i in range(crates.size() - 1, -1, -1):
 		var c: Crate = crates[i]
 		c.tick(delta, player_pos)
-		if not c.dead and c.pos.distance_to(player_pos) < 28.0:
+		if not c.dead and c.pos.distance_to(player_pos) < 32.0:
 			_apply_crate(c.kind)
 			c.dead = true
 		if c.dead:
@@ -909,23 +923,38 @@ func _update_crates(delta: float) -> void:
 
 
 func _spawn_crate() -> void:
-	var kinds := ["weapon", "drone", "life", "shield", "charge", "nova", "gem", "swap", "reflect", "prism"]
-	var kind: String = kinds[randi() % kinds.size()]
-	# 第二条武器线没解锁时，补给箱优先掉落棱镜，保证玩家在本局能换机
+	# 加权：强化类更常见（旧版 10 种等概率 → 武器/换线几乎不出现）
+	var weights := {
+		"weapon": 26, "prism": 12, "drone": 16, "life": 9, "shield": 11,
+		"charge": 8, "nova": 6, "gem": 6, "reflect": 3, "swap": 3,
+	}
+	var kind := "weapon"
+	# 棱镜未解锁时第一箱必给棱镜，保证本局能换线
 	if weapons.unlocked_count() < 2 and not weapons.line("prism").unlocked:
 		kind = "prism"
-	# 保底：连续 PITY_THRESHOLD 箱没出成长类就强制给一个（对齐 web PityThreshold）
+	else:
+		var total := 0
+		for k in weights:
+			total += int(weights[k])
+		var roll := randi() % total
+		for k in weights:
+			roll -= int(weights[k])
+			if roll < 0:
+				kind = String(k)
+				break
+	# 保底：连续 PITY_THRESHOLD 箱没成长类，强制武器强化
 	crate_drought += 1
 	if crate_drought >= CFG.PITY_THRESHOLD:
-		kind = ["weapon", "drone", "life", "shield"][randi() % 4]
+		kind = "weapon"
 	if kind == "weapon" or kind == "drone" or kind == "life" or kind == "shield":
 		crate_drought = 0
-	# 长时间没换线时概率掉换线箱（对齐 web SwapCrateChance）
-	if weapons.unlocked_count() >= 2 and swap_idle >= CFG.SWAP_IDLE_FOR_SWAP_CRATE \
-			and randf() < CFG.SWAP_CRATE_CHANCE:
+	# 长停未换线时概率掉换线箱
+	if weapons.unlocked_count() >= 2 and swap_idle >= CFG.SWAP_IDLE_FOR_SWAP_CRATE 			and randf() < CFG.SWAP_CRATE_CHANCE:
 		kind = "swap"
+	# 出生在中上屏（旧版从 -30 以 46px/s 下落、10s 寿命，根本到不了玩家）
 	var c := Crate.new()
-	c.setup(Vector2(randf_range(60.0, view_size.x - 60.0), -30.0), kind)
+	c.setup(Vector2(randf_range(60.0, view_size.x - 60.0),
+		view_size.y * randf_range(0.28, 0.42)), kind)
 	crates.append(c)
 
 
@@ -935,7 +964,7 @@ func _apply_crate(kind: String) -> void:
 		var labels := {
 			"weapon": "武器强化", "drone": "僚机 +1", "life": "船体修复",
 			"shield": "护盾 +1", "charge": "能量满充", "nova": "星爆就绪",
-			"gem": "+500", "swap": "解锁武器线", "reflect": "反射护盾", "prism": "棱镜解锁",
+			"gem": "+500", "swap": "切换武器", "reflect": "反射护盾", "prism": "棱镜解锁",
 		}
 		fx.pickup(player_pos, Color.html("#FFC554"), String(labels.get(kind, "补给")))
 	match kind:
@@ -956,10 +985,13 @@ func _apply_crate(kind: String) -> void:
 		"gem":
 			score += 500 * multiplier
 		"swap":
-			for l in weapons.lines:
-				if not l.unlocked:
-					l.unlocked = true
-					break
+			# 换线箱：直接切到下一条已解锁武器线；只有一条线时先解锁再切
+			if not weapons.cycle_weapon():
+				for l in weapons.lines:
+					if not l.unlocked:
+						l.unlocked = true
+						break
+				weapons.cycle_weapon()
 		"reflect":
 			player_invuln = maxf(player_invuln, CFG.REFLECT_DURATION)
 		"prism":
@@ -1264,7 +1296,7 @@ func _reset_game() -> void:
 	boss_pending = false
 	boss_cleared = false
 	crates.clear()
-	crate_timer = 16.0
+	crate_timer = 8.0
 	crate_drought = 0
 	drones.clear()
 	if music != null:

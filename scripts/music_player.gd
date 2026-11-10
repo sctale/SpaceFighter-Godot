@@ -5,7 +5,7 @@ extends Node
 ## 切区时直接换流并从 -40dB 淡入到 -12dB；暂停时冻结播放位置。
 
 const ZONE_COUNT := 10
-const TARGET_DB := -12.0
+const TARGET_DB := -15.0
 
 var _player: AudioStreamPlayer
 var _zone := 0

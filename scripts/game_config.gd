@@ -451,8 +451,8 @@ const AEGIS_PD_RADIUS := 38.0
 const AEGIS_PD_CLEAR_COUNT := 4
 
 # ---- 补给箱（game.js:1061-1086；director.js:230-303）----
-const SUPPLY_INTERVAL := 20.0
-const SUPPLY_INTERVAL_MIN := 19.0
+const SUPPLY_INTERVAL := 13.0
+const SUPPLY_INTERVAL_MIN := 11.0
 const SUPPLY_MID_PROGRESS := 0.55
 const PITY_THRESHOLD := 3
 const SWAP_IDLE_FOR_SWAP_CRATE := 10.0
