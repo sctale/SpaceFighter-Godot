@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.4 — 2026-11-10
+
+**ux / 产品设计 Audit 落地（Nielsen 走查 → 机会点 1）**
+
+- 防误触：暂停页『重新出击』『返回主菜单』改为两 tap 二次确认（2.5s 窗口），避免误触丢本局进度。
+- 设置入口：暂停页新增 音乐/音效/震屏 三开关，持久化到 user://save.cfg；Sfx/MusicPlayer 增加 enabled 门控。
+- 走查报告：spark-output/audit/aurora-rift.md + context/audit.json（10 findings：2 major 已修 / 8 minor 待排期；4 机会点）。
+- 门禁 checks=85、SELFTEST_OK n=5 保持通过。
+- Android versionName 1.3.4 / code 18。
+
+
 ## 1.3.3 — 2026-11-10
 
 **fix / 评审修复 + 手感层接回**

@@ -6,6 +6,7 @@ extends Node
 const RATE := 22050
 
 var _players: Array[AudioStreamPlayer] = []
+var enabled := true
 var _shot: AudioStreamWAV
 var _hit: AudioStreamWAV
 var _boom: AudioStreamWAV
@@ -27,6 +28,8 @@ func _ready() -> void:
 
 
 func _play(stream: AudioStream) -> void:
+	if not enabled:
+		return
 	for p in _players:
 		if not p.playing:
 			p.stream = stream

@@ -11,6 +11,7 @@ var _player: AudioStreamPlayer
 var _zone := 0
 var _fading := false
 var _cache: Dictionary = {}
+var enabled := true
 
 
 func _ready() -> void:
@@ -21,6 +22,9 @@ func _ready() -> void:
 
 
 func play_zone(z: int) -> void:
+	if not enabled:
+		stop()
+		return
 	z = clampi(z, 1, ZONE_COUNT)
 	if z == _zone and _player.playing:
 		return

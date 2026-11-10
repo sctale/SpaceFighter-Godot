@@ -224,7 +224,7 @@ func _draw_pause(vw: float, vh: float, st: float, sb: float, flash: String) -> v
 	var k := _ease_out(_modal_t / 0.32)
 	draw_rect(Rect2(0, 0, vw, vh), Color(0.10, 0.07, 0.16, 0.55 * k))
 	var w := minf(vw - 56.0, 440.0)
-	var h := minf(vh - st - sb - 80.0, 470.0)
+	var h := minf(vh - st - sb - 80.0, 520.0)
 	var card := Rect2((vw - w) * 0.5, (vh - h) * 0.5 + (1.0 - k) * 30.0, w, h)
 	skin.panel(self, card, skin.PAPER, 26.0, skin.INK, 4.0, true)
 	skin.halftone(self, Rect2(card.position + Vector2(16, 16), Vector2(70, 46)),
@@ -246,15 +246,33 @@ func _draw_pause(vw: float, vh: float, st: float, sb: float, flash: String) -> v
 	var bw := w - 56.0
 	var bh := 56.0
 	var gap := 12.0
+	var ca: String = String(main.confirm_action)
 	pause_buttons = {
 		"resume": Rect2(card.position.x + 28.0, by, bw, bh),
 		"restart": Rect2(card.position.x + 28.0, by + bh + gap, bw, bh),
 		"menu": Rect2(card.position.x + 28.0, by + (bh + gap) * 2.0, bw, bh),
 	}
 	skin.button(self, pause_buttons["resume"], "继续巡航", skin.PINK, flash == "resume", 24, skin.WHITE)
-	skin.button(self, pause_buttons["restart"], "重新出击", skin.CYAN, flash == "restart", 24, skin.INK)
-	skin.button(self, pause_buttons["menu"], "返回主菜单", skin.PAPER, flash == "menu", 22, skin.INK)
-	skin.text_center(self, vw * 0.5, card.end.y - 20.0,
+	skin.button(self, pause_buttons["restart"],
+		"确认重新出击？" if ca == "restart" else "重新出击",
+		skin.GOLD if ca == "restart" else skin.CYAN, flash == "restart", 24, skin.INK)
+	skin.button(self, pause_buttons["menu"],
+		"确认返回主菜单？" if ca == "menu" else "返回主菜单",
+		skin.GOLD if ca == "menu" else skin.PAPER, flash == "menu", 22, skin.INK)
+	# 设置开关：音乐 / 音效 / 震屏（持久化）
+	var sy := by + (bh + gap) * 2.0 + bh + 16.0
+	var tw := (bw - 16.0) / 3.0
+	var opts := [["opt_music", "音乐", bool(main.opt_music)],
+		["opt_sfx", "音效", bool(main.opt_sfx)],
+		["opt_shake", "震屏", bool(main.opt_shake)]]
+	for i in range(3):
+		var r := Rect2(card.position.x + 28.0 + i * (tw + 8.0), sy, tw, 40.0)
+		pause_buttons[String(opts[i][0])] = r
+		var on: bool = opts[i][2]
+		skin.panel(self, r, skin.CYAN if on else skin.CREAM, 10.0, skin.INK, 2.0, false)
+		skin.text_center(self, r.position.x + r.size.x * 0.5, r.position.y + 26.0,
+			"%s %s" % [opts[i][1], "开" if on else "关"], 13, skin.INK, 0)
+	skin.text_center(self, vw * 0.5, card.end.y - 16.0,
 		"点按按钮继续" if bool(main.is_mobile) else "也可以按 P / Esc 继续", 11, skin.INK_SOFT, 0)
 
 

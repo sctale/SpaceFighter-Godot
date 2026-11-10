@@ -126,6 +126,12 @@ var safe_bottom := 0.0
 var safe_left := 0.0
 var safe_right := 0.0
 var is_mobile := false
+# 设置（持久化）与破坏性操作二次确认
+var opt_music := true
+var opt_sfx := true
+var opt_shake := true
+var confirm_action := ""
+var confirm_t := 0.0
 
 # 视觉层
 var backdrop: SpaceBackdrop
@@ -307,6 +313,29 @@ func _load_best() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load("user://save.cfg") == OK:
 		best_score = int(cfg.get_value("score", "best", 0))
+		opt_music = bool(cfg.get_value("opt", "music", true))
+		opt_sfx = bool(cfg.get_value("opt", "sfx", true))
+		opt_shake = bool(cfg.get_value("opt", "shake", true))
+	_apply_opts()
+
+
+func _save_opts() -> void:
+	var cfg := ConfigFile.new()
+	cfg.load("user://save.cfg")
+	cfg.set_value("score", "best", best_score)
+	cfg.set_value("opt", "music", opt_music)
+	cfg.set_value("opt", "sfx", opt_sfx)
+	cfg.set_value("opt", "shake", opt_shake)
+	cfg.save("user://save.cfg")
+
+
+func _apply_opts() -> void:
+	if sfx != null:
+		sfx.enabled = opt_sfx
+	if music != null:
+		music.enabled = opt_music
+		if not opt_music:
+			music.stop()
 
 
 func _save_best() -> void:
@@ -455,6 +484,11 @@ func _process(delta: float) -> void:
 			img.save_png(path)
 			print("SHOT_SAVED ", path)
 			get_tree().quit()
+	# 二次确认窗口倒计时（暂停时也走真实时间）
+	if confirm_t > 0.0:
+		confirm_t = maxf(0.0, confirm_t - delta)
+		if confirm_t <= 0.0:
+			confirm_action = ""
 	if in_menu:
 		return
 	if paused:
@@ -499,6 +533,8 @@ func _process(delta: float) -> void:
 
 
 func _add_shake(amount: float, duration := 0.24) -> void:
+	if not opt_shake:
+		return
 	shake = maxf(shake, amount)
 	shake_t = maxf(shake_t, duration)
 
@@ -1090,12 +1126,37 @@ func _handle_ui_action(action: String) -> bool:
 					Color.html("#FFD27A"), 13)
 		"resume":
 			paused = false
+			confirm_action = ""
 			if music != null:
 				music.set_paused(false)
 		"restart", "retry":
-			_start_run()
+			# 暂停中「重新出击」会丢本局进度，需二次确认；结算页重开无损失直接执行
+			if paused and action == "restart" and confirm_action != "restart":
+				confirm_action = "restart"
+				confirm_t = 2.5
+			else:
+				confirm_action = ""
+				_start_run()
 		"menu":
-			_to_menu()
+			if paused and confirm_action != "menu":
+				confirm_action = "menu"
+				confirm_t = 2.5
+			else:
+				confirm_action = ""
+				_to_menu()
+		"opt_music":
+			opt_music = not opt_music
+			_apply_opts()
+			if opt_music and music != null:
+				music.play_zone(int(zone))
+			_save_opts()
+		"opt_sfx":
+			opt_sfx = not opt_sfx
+			_apply_opts()
+			_save_opts()
+		"opt_shake":
+			opt_shake = not opt_shake
+			_save_opts()
 		_:
 			return false
 	return true

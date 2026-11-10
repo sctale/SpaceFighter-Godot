@@ -1,0 +1,179 @@
+{
+  "skill": "audit",
+  "generated_at": "2026-11-10T21:44:03.487062+08:00",
+  "project_name": "裂隙巡航 Aurora Rift (Godot)",
+  "target": {
+    "type": "code",
+    "reference": "D:/V-Coding/space-fighter-godot @ v1.3.3",
+    "pages_audited": [
+      "menu",
+      "game",
+      "boss",
+      "pause",
+      "upgrade",
+      "results"
+    ]
+  },
+  "audit_framework": [
+    "Nielsen-10",
+    "responsive",
+    "performance"
+  ],
+  "findings": [
+    {
+      "id": "audit-1",
+      "heuristic": "error-prevention",
+      "severity": "major",
+      "description": "暂停页『重新出击』『返回主菜单』一点即执行，误触会直接丢掉本局进度，无二次确认。",
+      "evidence": "scripts/ui_overlay.gd _draw_pause / main.gd _handle_ui_action（v1.3.3 直接 _start_run/_to_menu）",
+      "suggestion": "改为两 tap 确认：首按变『确认重新出击？』并 2.5s 窗口，再按才执行。已在 v1.3.4 落地。",
+      "effort": "quick-win"
+    },
+    {
+      "id": "audit-2",
+      "heuristic": "flexibility",
+      "severity": "major",
+      "description": "无设置入口：音乐/音效/震屏无法关闭，对噪音敏感/晕动玩家不友好，也不持久化。",
+      "evidence": "暂停页仅 resume/restart/menu 三键（v1.3.3）",
+      "suggestion": "暂停页加 音乐/音效/震屏 三个开关并写入 user://save.cfg；已在 v1.3.4 落地。",
+      "effort": "medium"
+    },
+    {
+      "id": "audit-3",
+      "heuristic": "help-docs",
+      "severity": "minor",
+      "description": "无首局引导；擦弹/裂隙/失谐等核心机制全靠玩家自悟，菜单只有一张操作卡。",
+      "evidence": "ui_menu.gd 帮助卡仅讲按键，不讲机制",
+      "suggestion": "首局进入给 3 步轻量提示（移动/擦弹换星爆/星爆清屏），并在升级卡旁解释裂隙。",
+      "effort": "medium"
+    },
+    {
+      "id": "audit-4",
+      "heuristic": "recognition",
+      "severity": "minor",
+      "description": "Boss 预告色族（玫红=光束/紫=位移/金=投送）没有图例教学，新玩家无法把颜色与应对方式关联。",
+      "evidence": "boss.gd _tell / ui_overlay 警告横幅仅 WARNING",
+      "suggestion": "首次 Boss 战前用一行图例说明三种预告色含义。",
+      "effort": "quick-win"
+    },
+    {
+      "id": "audit-5",
+      "heuristic": "consistency",
+      "severity": "minor",
+      "description": "重开动词不统一：暂停用『重新出击』、结算用『再来一次』，同一动作两种叫法。",
+      "evidence": "ui_overlay.gd _draw_pause / _draw_results",
+      "suggestion": "统一为『重新出击』或建立文案表。",
+      "effort": "quick-win"
+    },
+    {
+      "id": "audit-6",
+      "heuristic": "real-world-match",
+      "severity": "minor",
+      "description": "『裂隙』作为升级货币首次出现时无解释，直到突破卡才隐含说明。",
+      "evidence": "ui_hud.gd 裂隙计数 / upgrade 卡",
+      "suggestion": "在 HUD 裂隙计数旁加 inline 提示或者首局浮字解释。",
+      "effort": "quick-win"
+    },
+    {
+      "id": "audit-7",
+      "heuristic": "aesthetic",
+      "severity": "minor",
+      "description": "高屏（20:9）菜单开始按钮与帮助卡之间留白偏大，视觉重心偏上。",
+      "evidence": "ui_menu.gd 布局（android_111_tall_menu 截图）",
+      "suggestion": "按视口高度弹性分配间距，帮助卡贴底。",
+      "effort": "medium"
+    },
+    {
+      "id": "audit-8",
+      "heuristic": "user-control",
+      "severity": "minor",
+      "description": "星区突破三选一不可跳过/放弃，强制选择（类型惯例，但无『暂不强化』出口）。",
+      "evidence": "ui_overlay.gd _draw_upgrade",
+      "suggestion": "保留强制（节奏需要）但增加说明『每区必选一项』降低困惑。",
+      "effort": "quick-win"
+    },
+    {
+      "id": "audit-9",
+      "heuristic": "responsive",
+      "severity": "minor",
+      "description": "仅竖屏；平板横屏会letterbox，未做横屏布局或提示。",
+      "evidence": "project.godot orientation=1",
+      "suggestion": "竖屏锁定可接受；横屏时显示『请旋转设备』提示。",
+      "effort": "medium"
+    },
+    {
+      "id": "audit-10",
+      "heuristic": "visibility",
+      "severity": "minor",
+      "description": "慢镜/打击停顿生效时无视觉提示，玩家不感知时间被拖慢，可能误判卡顿。",
+      "evidence": "main.gd hitstop/slowmo（v1.3.3 接回）",
+      "suggestion": "慢镜期间加轻微径向模糊/暗角或『子弹时间』浮字。",
+      "effort": "medium"
+    }
+  ],
+  "opportunities": [
+    {
+      "title": "防误触与玩家可控性（确认+设置）",
+      "addresses_findings": [
+        "audit-1",
+        "audit-2"
+      ],
+      "priority": "high",
+      "rationale": "两个 major 集中在 user-control/error-prevention/flexibility，直接关系丢进度与无障碍；已在 v1.3.4 落地。"
+    },
+    {
+      "title": "新手引导与机制释义",
+      "addresses_findings": [
+        "audit-3",
+        "audit-4",
+        "audit-6"
+      ],
+      "priority": "medium",
+      "rationale": "三个 minor 同属 help-docs/recognition/real-world-match，聚类为 onboarding 主题，降低首局流失。"
+    },
+    {
+      "title": "文案与术语一致性规范",
+      "addresses_findings": [
+        "audit-5",
+        "audit-6"
+      ],
+      "priority": "medium",
+      "rationale": "动词不统一+货币术语无解释，建立文案表一次解决。"
+    },
+    {
+      "title": "高屏留白与横屏提示打磨",
+      "addresses_findings": [
+        "audit-7",
+        "audit-9"
+      ],
+      "priority": "low",
+      "rationale": "responsive/aesthetic 细节包，不影响核心 loop。"
+    }
+  ],
+  "summary": {
+    "total_findings": 10,
+    "by_severity": {
+      "blocker": 0,
+      "major": 2,
+      "minor": 8
+    },
+    "by_heuristic": {
+      "error-prevention": 1,
+      "flexibility": 1,
+      "help-docs": 1,
+      "recognition": 1,
+      "consistency": 1,
+      "real-world-match": 1,
+      "aesthetic": 1,
+      "user-control": 1,
+      "responsive": 1,
+      "visibility": 1
+    },
+    "top_opportunities": [
+      "防误触与玩家可控性（确认+设置）",
+      "新手引导与机制释义",
+      "文案与术语一致性规范",
+      "高屏留白与横屏提示打磨"
+    ]
+  }
+}
