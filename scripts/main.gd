@@ -101,6 +101,7 @@ var upgrades := {}
 var upgrade_pending := false
 var upgrade_options: Array = []
 var game_over := false
+var won := false
 var paused := false
 var game_over_time := 0.0
 var difficulty := "standard"
@@ -204,6 +205,19 @@ func _ready() -> void:
 				boss_idx = int(_shot_mode.substr(4)) - 1
 			zone = boss_idx + 1
 			_start_boss()
+		elif _shot_mode == "victory":
+			# 终局胜利结算截图
+			in_menu = false
+			_reset_game()
+			zone = 10
+			won = true
+			game_over = true
+			game_over_time = 1.0
+			score = 126800
+			graze = 132
+			rift = 48
+			total_kills = 260
+			_save_best()
 		elif _shot_mode == "demo":
 			_demo_no_fire = true
 			in_menu = false
@@ -761,7 +775,12 @@ func _update_enemies(delta: float) -> void:
 func _start_boss() -> void:
 	boss = Boss.new()
 	# 六台 Boss 按星区轮换（第 7 星区起回到第 1 台）
-	boss.setup((zone - 1) % 6, zone, waves.density_tier(), CFG.DIFFICULTY[difficulty])
+	var boss_index: int = 5 if CFG.is_final_zone(int(zone)) else (int(zone) - 1) % 6
+	boss.setup(boss_index, zone, waves.density_tier(), CFG.DIFFICULTY[difficulty])
+	if CFG.is_final_zone(int(zone)):
+		# 终局：裁决者额外 20% 血量，作为整局的收束
+		boss.max_hp *= 1.2
+		boss.hp = boss.max_hp
 	boss.spawn_bullet = _enemy_spawn_bullet
 	boss.spawn_child = waves.spawn_child
 	boss.player_pos_fn = _player_pos
@@ -802,7 +821,15 @@ func _update_boss(delta: float) -> void:
 		boss_cleared = true
 		waves.zone_kills = 0
 		enemy_bullets.clear()
-		_open_upgrade_draft()
+		if CFG.is_final_zone(int(zone)):
+			# 第 10 区终局击破 → 巡航完成（不再无限循环）
+			won = true
+			game_over = true
+			game_over_time = 0.0
+			_save_best()
+			sfx.play_nova()
+		else:
+			_open_upgrade_draft()
 
 
 # ---------------------------------------------------------------- 僚机
@@ -1177,6 +1204,7 @@ func _to_menu() -> void:
 	in_menu = true
 	paused = false
 	game_over = false
+	won = false
 	score = 0
 	display_score = 0.0
 	display_boss_hp = 1.0
@@ -1211,6 +1239,7 @@ func _reset_game() -> void:
 	display_boss_hp = 1.0
 	graze = 0
 	game_over = false
+	won = false
 	paused = false
 	game_over_time = 0.0
 	player_bullets.clear()

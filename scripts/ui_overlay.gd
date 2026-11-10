@@ -292,8 +292,12 @@ func _draw_results(vw: float, vh: float, st: float, sb: float, flash: String) ->
 			tint = skin.CYAN
 		"C":
 			tint = skin.VIOLET
-	skin.text_center(self, vw * 0.5, card.position.y + 52.0, "巡航终止", 32, skin.PINK_DEEP, 0)
-	skin.text_center(self, vw * 0.5, card.position.y + 74.0, "信号消失在裂隙深处", 11, skin.INK_SOFT, 0)
+	var won: bool = bool(main.won)
+	skin.text_center(self, vw * 0.5, card.position.y + 52.0,
+		"巡航完成" if won else "巡航终止", 32,
+		skin.GOLD_DEEP if won else skin.PINK_DEEP, 0)
+	skin.text_center(self, vw * 0.5, card.position.y + 74.0,
+		"裂隙尽头 · 你带着信号回来了" if won else "信号消失在裂隙深处", 11, skin.INK_SOFT, 0)
 	# 评级星章
 	var gc := Vector2(vw * 0.5, card.position.y + 142.0)
 	skin.icon_burst(self, gc, 56.0, Color(tint.r, tint.g, tint.b, 0.18), 10)

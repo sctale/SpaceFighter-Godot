@@ -287,8 +287,8 @@ func _cast_tick(dt: float, p: Vector2) -> void:
 			if _emit_t <= 0.0:
 				_emit_t = 0.07
 				var sweep := -0.7 + _volley * 0.06
-				_shot(pos, PI * 0.5 + sweep, sp * 1.0, 5.0, Color.html("#ff5c8a"))
-				_shot(pos, PI * 0.5 - sweep, sp * 1.0, 5.0, Color.html("#ff5c8a"))
+				_shot(pos, PI * 0.5 + sweep, sp * 1.0, 5.0, Color.html("#ff5c8a"), "needle")
+				_shot(pos, PI * 0.5 - sweep, sp * 1.0, 5.0, Color.html("#ff5c8a"), "needle")
 				_volley += 1
 		5:  # 十字光牢
 			if _emit_t <= 0.0 and _volley < 3:
@@ -297,7 +297,7 @@ func _cast_tick(dt: float, p: Vector2) -> void:
 				for k in range(4):
 					var base := spin + k * TAU / 4.0
 					for i in range(5):
-						_shot(pos, base, sp * (0.6 + i * 0.12), 6.0, Color.html("#ff5c8a"))
+						_shot(pos, base, sp * (0.6 + i * 0.12), 6.0, Color.html("#ff5c8a"), "needle")
 		6:  # 母舰召唤
 			if _volley < 1:
 				_volley = 1
@@ -309,12 +309,12 @@ func _cast_tick(dt: float, p: Vector2) -> void:
 			if _emit_t <= 0.0:
 				_emit_t = 0.42
 				for i in range(2):
-					_shot(pos, (p - pos).angle() + (i - 0.5) * 0.12, sp * 0.5, 10.0, Color(1.0, 0.86, 0.55))
+					_shot(pos, (p - pos).angle() + (i - 0.5) * 0.12, sp * 0.5, 10.0, Color(1.0, 0.86, 0.55), "heavy")
 		8:  # 双子光矛
 			if _emit_t <= 0.0:
 				_emit_t = 0.05
-				_shot(pos + Vector2(-34, 0), PI * 0.5, sp * 1.3, 5.0, Color.html("#ff5c8a"))
-				_shot(pos + Vector2(34, 0), PI * 0.5, sp * 1.3, 5.0, Color.html("#ff5c8a"))
+				_shot(pos + Vector2(-34, 0), PI * 0.5, sp * 1.3, 5.0, Color.html("#ff5c8a"), "needle")
+				_shot(pos + Vector2(34, 0), PI * 0.5, sp * 1.3, 5.0, Color.html("#ff5c8a"), "needle")
 		9:  # 雷区播种
 			if _emit_t <= 0.0 and _volley < 8:
 				_emit_t = 0.18
@@ -330,7 +330,7 @@ func _cast_tick(dt: float, p: Vector2) -> void:
 			if _emit_t <= 0.0:
 				_emit_t = 0.06
 				for k in range(6):
-					_shot(pos, spin * 1.4 + k * TAU / 6.0, sp * 1.1, 5.0, Color.html("#ff5c8a"))
+					_shot(pos, spin * 1.4 + k * TAU / 6.0, sp * 1.1, 5.0, Color.html("#ff5c8a"), "needle")
 				spin += 0.02
 		12:  # 波动弹幕
 			if _emit_t <= 0.0:
@@ -366,7 +366,7 @@ func _cast_tick(dt: float, p: Vector2) -> void:
 			if _emit_t <= 0.0:
 				_emit_t = 0.06
 				for k in range(4):
-					_shot(pos, spin * 1.5 + k * TAU / 4.0, sp * 0.95, 5.0, Color.html("#ff5c8a"))
+					_shot(pos, spin * 1.5 + k * TAU / 4.0, sp * 0.95, 5.0, Color.html("#ff5c8a"), "needle")
 		17:  # 陨星暴雨
 			if _emit_t <= 0.0:
 				_emit_t = 0.07
@@ -410,9 +410,10 @@ func _aim_shot(target: Vector2, speed: float, radius: float, col: Color) -> void
 	_shot(pos, (target - pos).angle(), speed, radius, col)
 
 
-func _shot(from: Vector2, angle: float, speed: float, radius: float, col: Color) -> void:
+func _shot(from: Vector2, angle: float, speed: float, radius: float, col: Color,
+		kind := "orb") -> void:
 	if spawn_bullet.is_valid():
-		spawn_bullet.call(from, Vector2(cos(angle), sin(angle)) * speed, col, radius, "orb", 9.0)
+		spawn_bullet.call(from, Vector2(cos(angle), sin(angle)) * speed, col, radius, kind, 9.0)
 
 
 func _spawn_mine(from: Vector2, vel: Vector2) -> void:

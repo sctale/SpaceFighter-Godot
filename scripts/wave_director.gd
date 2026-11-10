@@ -36,7 +36,7 @@ func quota() -> int:
 
 func progress() -> float:
 	var kills_k := float(zone_kills) / maxf(1.0, float(quota()))
-	var time_k := float(zone_time) / CFG.ZONE_MIN_TIME
+	var time_k := float(zone_time) / CFG.zone_min_time(int(m.zone))
 	return clampf(minf(kills_k, time_k), 0.0, 1.0)
 
 
@@ -49,7 +49,7 @@ func tick(delta: float) -> void:
 	if m.boss != null:
 		return
 	zone_time += delta
-	if zone_kills >= quota() and zone_time >= CFG.ZONE_MIN_TIME:
+	if zone_kills >= quota() and zone_time >= CFG.zone_min_time(int(m.zone)):
 		m._start_boss()
 		return
 	wave_timer -= delta
@@ -78,7 +78,13 @@ func _roster_pool() -> Array:
 func _spawn_wave(n: int) -> void:
 	var pool := _roster_pool()
 	var kind: String = pool[randi() % pool.size()]
-	var elite_wave := n % 4 == 0
+	# 第 6 区起混编两种机体，避免后段只换速度不换内容
+	var kind2: String = kind
+	if int(m.zone) >= 6:
+		kind2 = pool[randi() % pool.size()]
+	# 精英小队：前 5 区每 4 波，后段每 3 波
+	var elite_every := 3 if int(m.zone) >= 6 else 4
+	var elite_wave := n % elite_every == 0
 	var count := 3 + mini(4, int(m.zone) / 2)
 	var affix := "none"
 	if not elite_wave and randf() < CFG.AFFIX_BASE_CHANCE + minf(CFG.AFFIX_MAX_EXTRA, int(m.zone) * 0.02):
@@ -88,27 +94,32 @@ func _spawn_wave(n: int) -> void:
 		0:  # 横排
 			for i in range(count):
 				var x := 90.0 + i * (vw - 180.0) / maxf(1.0, count - 1.0)
-				spawn_enemy(kind, Vector2(x, -40.0 - absf(i - (count - 1) * 0.5) * 18.0),
+				spawn_enemy(kind if i % 2 == 0 else kind2,
+					Vector2(x, -40.0 - absf(i - (count - 1) * 0.5) * 18.0),
 					elite_wave and i == count / 2, affix)
 		1:  # V 字
 			for i in range(count):
 				var off := i - (count - 1) * 0.5
-				spawn_enemy(kind, Vector2(vw * 0.5 + off * 62.0, -40.0 - absf(off) * 34.0),
+				spawn_enemy(kind if i % 2 == 0 else kind2,
+					Vector2(vw * 0.5 + off * 62.0, -40.0 - absf(off) * 34.0),
 					elite_wave and absf(off) < 0.6, affix)
 		2:  # 双列
 			for i in range(count):
 				var side := -1.0 if i % 2 == 0 else 1.0
 				var row := i / 2
-				spawn_enemy(kind, Vector2(vw * 0.5 + side * 120.0, -40.0 - row * 52.0),
+				spawn_enemy(kind if i % 2 == 0 else kind2,
+					Vector2(vw * 0.5 + side * 120.0, -40.0 - row * 52.0),
 					elite_wave and i < 2, affix)
 		3:  # 集群
 			for i in range(count + 1):
-				spawn_enemy(kind, Vector2(randf_range(70.0, vw - 70.0), -40.0 - i * 26.0),
+				spawn_enemy(kind if i % 2 == 0 else kind2,
+					Vector2(randf_range(70.0, vw - 70.0), -40.0 - i * 26.0),
 					elite_wave and i == 0, affix)
 		_:  # 侧翼包抄
 			for i in range(count):
 				var side := -1.0 if i < count * 0.5 else 1.0
-				spawn_enemy(kind, Vector2(vw * 0.5 + side * (150.0 + i * 16.0), -40.0 - (i % 2) * 30.0),
+				spawn_enemy(kind if i % 2 == 0 else kind2,
+					Vector2(vw * 0.5 + side * (150.0 + i * 16.0), -40.0 - (i % 2) * 30.0),
 					elite_wave and i == 0, affix)
 
 

@@ -22,9 +22,9 @@ func _initialize() -> void:
 	_eq(failures, "UPGRADE_MAX_HULL", CFG.UPGRADE_MAX_HULL, 4)
 	_eq(failures, "UPGRADE_POOL", CFG.UPGRADE_POOL.size(), 10)
 	_eq(failures, "UPGRADE_SPEED_MAX", CFG.UPGRADE_SPEED_MAX, 1.30)
-	_eq(failures, "ZONE_QUOTA_BASE", CFG.ZONE_QUOTA_BASE, 28)
+	_eq(failures, "ZONE_QUOTA_BASE", CFG.ZONE_QUOTA_BASE, 26)
 	_eq(failures, "ZONE_QUOTA_STEP", CFG.ZONE_QUOTA_STEP, 4)
-	_eq(failures, "ZONE_MIN_TIME", CFG.ZONE_MIN_TIME, 40.0)
+	_eq(failures, "ZONE_MIN_TIME", CFG.ZONE_MIN_TIME, 30.0)
 	# 每星区一段 BGM：缺任一文件即视为资源不完整
 	var music_ok := 0
 	for i in range(1, 11):
@@ -116,6 +116,16 @@ func _initialize() -> void:
 	_eq(failures, "beh.bossMoves.chargeDur", Boss.MOVE_DURATIONS[15], 3.2)
 	_eq(failures, "beh.bossMoves.label0", Boss.MOVE_LABELS[0], "扇形齐射")
 	_eq(failures, "beh.bossMoves.label21", Boss.MOVE_LABELS[21], "新星爆发")
+
+	# ---- 星区节奏 / 终局 ----
+	_eq(failures, "beh.zone.minTime1", CFG.zone_min_time(1), 30.0)
+	_eq(failures, "beh.zone.minTime10", CFG.zone_min_time(10), 40.8)
+	_eq(failures, "beh.zone.quotaBase", CFG.ZONE_QUOTA_BASE, 26)
+	_eq(failures, "beh.zone.quotaStep", CFG.ZONE_QUOTA_STEP, 4)
+	_eq(failures, "beh.zone.finalNo", CFG.is_final_zone(9), false)
+	_eq(failures, "beh.zone.finalYes", CFG.is_final_zone(10), true)
+	_eq(failures, "beh.boss.roster", Boss.NAMES.size(), 6)
+	_eq(failures, "beh.boss.finalHp", Boss.BASE_HP[5], 500.0)
 
 	if failures.is_empty():
 		print("VERIFY_OK checks=%d" % checks)

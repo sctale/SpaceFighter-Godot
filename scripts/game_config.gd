@@ -302,9 +302,10 @@ const MAX_ENEMIES_ALIVE := 42
 const MAX_ENEMY_BULLETS := 420
 
 # ---- 星区节奏（v1.3.0：把单区时长从约 20 秒拉到约 45 秒）----
-const ZONE_QUOTA_BASE := 28
+const ZONE_QUOTA_BASE := 26
 const ZONE_QUOTA_STEP := 4
-const ZONE_MIN_TIME := 40.0
+const ZONE_MIN_TIME := 30.0
+const ZONE_MIN_TIME_STEP := 1.2
 const MINE_DRAG := 3.8
 const MINE_BURST_SPEED := 128.0
 const WAVE_PHASE_RATE := 7.2
@@ -470,6 +471,16 @@ static func weapon_name(id: String, level: int) -> String:
 
 static func boss_hp_scale(zone: int) -> float:
 	return 1.0 + minf(BOSS_HP_GROWTH_CAP, maxf(0, zone - 1) * BOSS_HP_SECTOR_GROWTH)
+
+
+## 每星区最短停留：30s 起，逐区 +1.2s（第 10 区约 40.8s）。
+static func zone_min_time(zone: int) -> float:
+	return ZONE_MIN_TIME + maxf(0, zone - 1) * ZONE_MIN_TIME_STEP
+
+
+## 第 10 区为终局（最终 Boss）。
+static func is_final_zone(zone: int) -> bool:
+	return zone >= 10
 
 
 static func enemy_hp_scale(sector: int) -> float:
