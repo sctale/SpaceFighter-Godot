@@ -9,7 +9,7 @@ const ZONE_NAMES := ["裂隙入口", "星云回廊", "静默空域", "熔星带"
 
 
 static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
-		safe_top: float, safe_bottom: float, t: float) -> Dictionary:
+		safe_top: float, safe_bottom: float, t: float, pressed: String) -> Dictionary:
 	var rects := {}
 	var w := minf(vw - 64.0, 460.0)
 	var cx := vw * 0.5
@@ -49,7 +49,13 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	ci.draw_set_transform(title_c, -0.018, Vector2.ONE)
 	if logo_tex != null:
-		ci.draw_texture_rect(logo_tex, Rect2(-180, -90, 360, 180), false, Color.WHITE)
+		# 暗底适配：只保留标题图形，副标题改 Token 色实时文字（原贴图深navy暗底不可读）
+		var ts := logo_tex.get_size()
+		var rh := ts.y * 0.46
+		var dh := 360.0 * rh / ts.x
+		ci.draw_texture_rect_region(logo_tex, Rect2(-180, -76, 360, dh),
+			Rect2(0, ts.y * 0.14, ts.x, rh))
+		skin.text_center(ci, 0, -76 + dh + 26, "A U R O R A   R I F T", 12, skin.PINK_DEEP, 0)
 	else:
 		ci.draw_rect(Rect2(-162, -56, 324, 3), Color(skin.PINK.r, skin.PINK.g, skin.PINK.b, 0.55))
 		skin.text_center(ci, 0, 16, "裂隙巡航", 52, skin.INK, 0)
@@ -153,6 +159,14 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 				xx += key_w + 30.0
 		skin.text(ci, hint_rect.position + Vector2(26, hint_rect.size.y - 12),
 			"支持触屏与键盘操作", 11, Color(skin.INK_SOFT.r, skin.INK_SOFT.g, skin.INK_SOFT.b, 0.8))
+
+	# 设置入口：右上齿轮，打开独立设置屏（复用现有三开关）
+	var set_r := Rect2(vw - 62.0, safe_top + 10.0, 48.0, 48.0)
+	rects["settings"] = set_r
+	skin.panel(ci, set_r, skin.PAPER, 16.0, skin.BORDER, 3.0, true)
+	if pressed == "settings":
+		skin.panel(ci, Rect2(set_r.position + Vector2(0, 2), set_r.size), skin.CREAM, 16.0, skin.BORDER, 3.0, false)
+	skin.icon_gear(ci, set_r.get_center(), 11.0, skin.INK)
 
 	# 页脚
 	var ver := String(ProjectSettings.get_setting("application/config/version", "0.0.0"))

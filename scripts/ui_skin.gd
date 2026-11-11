@@ -174,6 +174,15 @@ func icon_heart(ci: CanvasItem, c: Vector2, r: float, color: Color) -> void:
 	ci.draw_colored_polygon(pts, color)
 
 
+func icon_gear(ci: CanvasItem, c: Vector2, r: float, color: Color) -> void:
+	for i in range(8):
+		var a := TAU * float(i) / 8.0
+		var d := Vector2(cos(a), sin(a))
+		ci.draw_line(c + d * r * 0.55, c + d * r, color, r * 0.34)
+	ci.draw_circle(c, r * 0.62, color)
+	ci.draw_circle(c, r * 0.26, PAPER)
+
+
 func icon_pause(ci: CanvasItem, c: Vector2, r: float, color: Color) -> void:
 	ci.draw_rect(Rect2(c + Vector2(-r * 0.42, -r * 0.55), Vector2(r * 0.30, r * 1.10)), color)
 	ci.draw_rect(Rect2(c + Vector2(r * 0.12, -r * 0.55), Vector2(r * 0.30, r * 1.10)), color)

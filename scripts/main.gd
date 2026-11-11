@@ -97,6 +97,7 @@ var multiplier := 1
 
 # 界面状态 / 存档 / 音效
 var in_menu := true
+var settings_open := false
 var best_score := 0
 var sfx: Sfx
 var music: MusicPlayer
@@ -304,6 +305,9 @@ func _ready() -> void:
 			# 纯视觉验收：受击/护盾边缘闪（DevShots）
 			in_menu = false
 			_reset_game()
+		elif _shot_mode == "settings":
+			in_menu = true
+			settings_open = true
 		_shot_taken = false
 
 
@@ -1540,6 +1544,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if in_menu:
+			if settings_open:
+				if event.keycode == KEY_ESCAPE:
+					settings_open = false
+				return
 			if event.keycode == KEY_ENTER or event.keycode == KEY_SPACE:
 				_start_run()
 			elif event.keycode == KEY_1:
@@ -1641,6 +1649,10 @@ func _handle_ui_action(action: String) -> bool:
 			difficulty = "abyss"
 		"start":
 			_start_run()
+		"settings":
+			settings_open = true
+		"settings_back":
+			settings_open = false
 		"pause":
 			paused = true
 			if music != null:
@@ -1678,8 +1690,10 @@ func _handle_ui_action(action: String) -> bool:
 		"opt_music":
 			opt_music = not opt_music
 			_apply_opts()
-			if opt_music and music != null:
+			# 菜单里不播战斗 BGM；暂停中切换只记开关不 resume（修 A2）
+			if opt_music and music != null and not in_menu:
 				music.play_zone(int(zone))
+				music.set_paused(paused)
 			_save_opts()
 		"opt_sfx":
 			opt_sfx = not opt_sfx
@@ -1706,6 +1720,7 @@ func _to_menu() -> void:
 	_save_best()
 	_reset_upgrades()
 	in_menu = true
+	settings_open = false
 	paused = false
 	game_over = false
 	won = false

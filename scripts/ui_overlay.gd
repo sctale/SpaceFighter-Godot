@@ -13,6 +13,7 @@ var font: Font
 var pressed := ""
 var pressed_t := 0.0
 var menu_buttons := {}
+var settings_buttons := {}
 var game_buttons := {}
 var pause_buttons := {}
 var over_buttons := {}
@@ -48,7 +49,7 @@ func _process(delta: float) -> void:
 		_modal_t = 0.0
 		_last_state = state
 	_fade = maxf(0.0, _fade - delta * 3.4)
-	if state == "paused" or state == "over" or state == "upgrade":
+	if state == "paused" or state == "over" or state == "upgrade" or state == "settings":
 		_modal_t += delta
 	main.display_score = lerpf(float(main.display_score), float(main.score),
 		1.0 - exp(-7.0 * delta))
@@ -86,7 +87,7 @@ func _process(delta: float) -> void:
 
 func _state() -> String:
 	if bool(main.in_menu):
-		return "menu"
+		return "settings" if bool(main.settings_open) else "menu"
 	if bool(main.game_over):
 		return "over"
 	if bool(main.upgrade_pending):
@@ -118,7 +119,11 @@ func _draw() -> void:
 	var sr: float = CFG.SAFE_RIGHT
 	var flash := pressed if pressed_t > 0.0 else ""
 	if bool(main.in_menu):
-		menu_buttons = UIMenu.draw(self, skin, main, vw, vh, st, sb, _t)
+		if bool(main.settings_open):
+			settings_buttons = UISettings.draw(self, skin, main, vw, vh, st, sb, _t, flash,
+				_ease_out(_modal_t / 0.32))
+		else:
+			menu_buttons = UIMenu.draw(self, skin, main, vw, vh, st, sb, _t, flash)
 		_draw_fade(vw, vh)
 		return
 	game_buttons = UIHud.draw(self, skin, main, vw, vh, st, sb, sl, sr, _t, flash,
@@ -147,9 +152,18 @@ func press(p: Vector2) -> String:
 				return _flash_action("upgrade_" + String(k))
 		return ""
 	if bool(main.in_menu):
+		if bool(main.settings_open):
+			for k in settings_buttons:
+				if Rect2(settings_buttons[k]).has_point(p):
+					return _flash_action(String(k))
+			return ""
 		for k in menu_buttons:
 			if Rect2(menu_buttons[k]).has_point(p):
-				return _flash_action("diff_" + String(k) if k != "start" else "start")
+				if String(k) == "start":
+					return _flash_action("start")
+				if String(k) == "settings":
+					return _flash_action("settings")
+				return _flash_action("diff_" + String(k))
 		return ""
 	if bool(main.game_over):
 		for k in over_buttons:
