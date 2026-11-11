@@ -39,6 +39,8 @@ class Bullet:
 	var homing := false      # 蜂群追踪
 	var homing_time := 0.0
 	var homing_delay := 0.0
+	var turn_rate := 4.6     # 追踪转向速率（rad/s）
+	var phased := false      # 相位冲刺已标记（不再重复计分）
 	var boss_bonus := 1.0
 	var hit_enemies: Array = []  # 贯穿弹已 hit 过的敌机，避免一帧多次扣血
 
@@ -71,6 +73,7 @@ var overdrive := 0.0       # 超频剩余时间
 var dash_t := 0.0
 var dash_cd := 0.0
 var dash_dir := Vector2.ZERO
+var reflect_t := 0.0       # 反射护盾剩余时间（吸收敌弹 + 一次免死）
 var swap_idle := 0.0
 var combo := 0
 var combo_timer := 0.0
@@ -633,9 +636,19 @@ func _update_skills(delta: float) -> void:
 	dash_t = maxf(0.0, dash_t - delta)
 	dash_cd = maxf(0.0, dash_cd - delta)
 	overdrive = maxf(0.0, overdrive - delta)
+	reflect_t = maxf(0.0, reflect_t - delta)
 	swap_idle += delta
 	# 星爆自然回充
 	_gain_nova(CFG.NOVA_REGEN_PER_SECOND * delta)
+	# 反射护盾：吸收 50px 内敌弹，每颗 +0.6×0.42 星爆（Unity Reflect field）
+	if reflect_t > 0.0:
+		for i in range(enemy_bullets.size() - 1, -1, -1):
+			var eb: Bullet = enemy_bullets[i]
+			if eb.pos.distance_to(player_pos) < 50.0 + eb.radius:
+				enemy_bullets.remove_at(i)
+				_gain_nova(CFG.NOVA_ON_POINT_DEFENSE * 0.42)
+				if fx != null:
+					fx.hit(eb.pos, Color.html("#6FA8FF"))
 
 
 func _update_economy(delta: float) -> void:
@@ -651,6 +664,23 @@ func _reset_upgrades() -> void:
 
 
 func _gain_nova(amount: float) -> void:
+	# 超频期间不充能（Unity AddNova: blocked during overdrive）
+	if overdrive > 0.0:
+		return
+	var mul := float(upgrades.get("nova_gain", 1.0))
+	# 失谐 ×0.45；共鸣每层 +6%（Unity AddNova）
+	if weapons.active().detuned:
+		mul *= CFG.DETUNED_NOVA_MUL
+	else:
+		mul *= 1.0 + weapons.resonance * CFG.RESONANCE_PER_STACK_CHARGE
+	mul *= float(CFG.DIFFICULTY[difficulty]["nova"])
+	nova = minf(100.0, nova + amount * mul)
+
+
+## 受创充能：不受失谐/共鸣/难度修正（Unity AddNovaRaw）
+func _gain_nova_raw(amount: float) -> void:
+	if overdrive > 0.0:
+		return
 	nova = minf(100.0, nova + amount * float(upgrades.get("nova_gain", 1.0)))
 
 
@@ -723,7 +753,13 @@ func _trigger_dash() -> void:
 		dir.y -= 1.0
 	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
 		dir.y += 1.0
-	dash_dir = dir.normalized() if dir.length_squared() > 0.0 else Vector2(0, -1)
+	# 无按键时用最近移动方向（Unity _lastMove），触屏拖拽也能冲刺
+	if dir.length_squared() > 0.0:
+		dash_dir = dir.normalized()
+	elif absf(player_last_dir) > 0.05:
+		dash_dir = Vector2(player_last_dir, -0.3).normalized()
+	else:
+		dash_dir = Vector2(0, -1)
 	if fx != null:
 		fx.dash(player_pos, dash_dir, Color.html("#57E6D8"))
 	_add_shake(3.0, 0.16)
@@ -751,6 +787,11 @@ func _trigger_nova() -> void:
 		e.flash = 0.12
 		if e.hp <= 0.0:
 			collisions.kill_enemy(i, CFG.DIFFICULTY[difficulty])
+	# Boss 星爆伤害：6% 最大血量 + 30 固定（Unity NovaBlast）
+	if boss != null and boss.entered and not boss.dying:
+		var boss_dmg := roundf(boss.max_hp * CFG.NOVA_BOSS_DAMAGE_FRAC) + CFG.NOVA_BOSS_DAMAGE_FLAT
+		boss.take_damage(boss_dmg)
+		boss.damage_flash()
 
 
 ## 星区击杀进度 0..1，HUD 进度条使用。
@@ -771,7 +812,12 @@ func _enemy_spawn_bullet(pos: Vector2, vel: Vector2, color: Color, radius: float
 		b.fuse = randf_range(1.8, 2.4)
 		b.split_on_expire = 10
 	elif kind == "wave":
-		b.wave = 2.6
+		b.wave = 2.1
+	elif kind == "seeker":
+		b.homing = true
+		b.homing_time = 2.6
+		b.homing_delay = 0.15
+		b.turn_rate = 1.9
 	enemy_bullets.append(b)
 
 
@@ -798,7 +844,22 @@ func _start_boss() -> void:
 	boss.spawn_bullet = _enemy_spawn_bullet
 	boss.spawn_child = waves.spawn_child
 	boss.player_pos_fn = _player_pos
+	boss.on_phase_change = _on_boss_phase
+	boss.on_desperate = _on_boss_desperate
 	boss_pending = true
+
+
+func _on_boss_phase(_phase: int) -> void:
+	# Unity：阶段切换给玩家 0.75s 无敌 + hitstop 0.06
+	player_invuln = maxf(player_invuln, CFG.INVULN_ON_BOSS_PHASE)
+	_feel_freeze(CFG.FREEZE_PHASE)
+
+
+func _on_boss_desperate() -> void:
+	_feel_freeze(CFG.FREEZE_DESPERATE)
+	if fx != null:
+		fx.float_text(boss.pos + Vector2(0, -boss.size), "核心临界",
+			Color.html("#FF6B7A"), 16)
 
 
 func _update_boss(delta: float) -> void:
@@ -898,11 +959,15 @@ func _update_drones(delta: float) -> void:
 				player_bullets.append(sb)
 			"aegis":
 				d["timer"] = CFG.AEGIS_PD_INTERVAL
+				var cleared := 0
 				for j in range(enemy_bullets.size() - 1, -1, -1):
+					if cleared >= CFG.AEGIS_PD_CLEAR_COUNT:
+						break
 					var eb: Bullet = enemy_bullets[j]
 					if eb.pos.distance_to(dpos) < CFG.AEGIS_PD_RADIUS + eb.radius:
 						enemy_bullets.remove_at(j)
 						_gain_nova(CFG.NOVA_ON_POINT_DEFENSE)
+						cleared += 1
 
 
 # ---------------------------------------------------------------- 补给箱
@@ -993,7 +1058,7 @@ func _apply_crate(kind: String) -> void:
 						break
 				weapons.cycle_weapon()
 		"reflect":
-			player_invuln = maxf(player_invuln, CFG.REFLECT_DURATION)
+			reflect_t = CFG.REFLECT_DURATION
 		"prism":
 			weapons.unlock_line("prism")
 
@@ -1017,21 +1082,33 @@ func _advance_bullets(arr: Array, delta: float) -> void:
 					_burst_mine(b)
 					arr.remove_at(i)
 					continue
-		# 蜂群追踪：锁定最近敌机 1.45 秒后转直线
+		# 追踪：角度钳制转向（Unity Projectile：max TurnRate×dt radians）
 		if b.homing and b.age > b.homing_delay and b.homing_time > 0.0:
-			var tgt := _nearest_enemy(b.pos)
-			if tgt != null:
+			var target_pos := Vector2.ZERO
+			var has_target := false
+			if b.friendly:
+				var tgt := _nearest_enemy(b.pos)
+				if tgt != null:
+					target_pos = tgt.pos
+					has_target = true
+			else:
+				target_pos = player_pos
+				has_target = true
+			if has_target:
 				var spd := b.vel.length()
-				var want := (tgt.pos - b.pos).normalized() * spd
-				b.vel = b.vel.lerp(want, clampf(CFG.SWARM_TURN_RATE * delta, 0.0, 1.0))
-				b.vel = b.vel.normalized() * spd
+				var cur_ang := b.vel.angle()
+				var want_ang := (target_pos - b.pos).angle()
+				var diff_ang := wrapf(want_ang - cur_ang, -PI, PI)
+				var max_turn := b.turn_rate * delta
+				var new_ang := cur_ang + clampf(diff_ang, -max_turn, max_turn)
+				b.vel = Vector2(cos(new_ang), sin(new_ang)) * spd
 			b.homing_time -= delta
-		# 波动弹：沿垂直方向叠一层正弦横摆
+		# 波动弹：角速度正弦偏转（Unity：angle += sin(age×7.2+seed)×wave×dt）
 		if b.wave > 0.0:
-			var perp := b.base_vel.normalized().orthogonal()
-			b.pos += b.vel * delta + perp * sin(b.age * CFG.WAVE_PHASE_RATE) * b.wave
-		else:
-			b.pos += b.vel * delta
+			var spd := b.vel.length()
+			var ang := b.vel.angle() + sin(b.age * CFG.WAVE_PHASE_RATE) * b.wave * delta
+			b.vel = Vector2(cos(ang), sin(ang)) * spd
+		b.pos += b.vel * delta
 		b.life -= delta
 		if b.life <= 0.0 or b.pos.y < -40.0 or b.pos.y > view_size.y + 40.0 \
 				or b.pos.x < -40.0 or b.pos.x > view_size.x + 40.0:
@@ -1288,6 +1365,7 @@ func _reset_game() -> void:
 	overdrive = 0.0
 	dash_t = 0.0
 	dash_cd = 0.0
+	reflect_t = 0.0
 	swap_idle = 0.0
 	combo = 0
 	combo_timer = 0.0

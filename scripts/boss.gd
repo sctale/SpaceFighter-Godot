@@ -70,17 +70,23 @@ var chain_count := 0
 var move_index := 0
 var seq_index := 0
 var desperate := false
+var _desperate_fired := false
 var flash := 0.0
 var _mercy := 0.0
 var _volley := 0
 var _emit_t := 0.0
 var _charge_dir := Vector2.ZERO
+var _idle_t := 0.0
 
 # func(pos, vel, color, radius, kind, life)
 var spawn_bullet: Callable
 # func(kind, pos)
 var spawn_child: Callable
 var player_pos_fn: Callable
+# func(phase:int) — 阶段切换时通知 Main 给玩家无敌帧 + hitstop
+var on_phase_change: Callable
+# func() — 临界触发时通知 Main hitstop + 公告
+var on_desperate: Callable
 
 
 func setup(p_index: int, zone: int, p_tier: int, p_diff: Dictionary) -> void:
@@ -100,6 +106,7 @@ func setup(p_index: int, zone: int, p_tier: int, p_diff: Dictionary) -> void:
 	entered = false
 	dying = false
 	desperate = false
+	_desperate_fired = false
 
 
 func hp_frac() -> float:
@@ -139,16 +146,12 @@ func tick(dt: float, player_pos: Vector2) -> void:
 	if _mercy > 0.0:
 		_mercy -= dt
 
+	# 破防只做伤害窗口与表现，不再冻结招式节拍/预告/出招计时（Unity v0.21.14）
 	if stun > 0.0:
 		stun -= dt
 		if stun <= 0.0:
 			stun = 0.0
-			if casting and move_t >= move_dur:
-				casting = false
-			if not casting and telegraph <= 0.0:
-				cast_label = ""
 			timer = CFG.boss_resume_timer(timer)
-		return
 
 	# 悬停（贯穿冲撞/相位闪现期间由招式接管位置）
 	if not casting or (move_index != 15 and move_index != 10):
@@ -156,15 +159,34 @@ func tick(dt: float, player_pos: Vector2) -> void:
 		pos.x = lerpf(pos.x, anchor.x + drift, 1.0 - exp(-2.2 * dt))
 		pos.y = lerpf(pos.y, anchor.y + sin(age * 0.9) * 7.0, 1.0 - exp(-2.2 * dt))
 
+	# 阶段切换只在空闲时发生（Unity：!casting && telegraph<=0 && pending==0）
 	var frac := hp_frac()
 	var want := 0 if frac > CFG.BOSS_PHASE_HIGH else (1 if frac > CFG.BOSS_PHASE_LOW else 2)
-	if want > phase:
+	if want > phase and not casting and telegraph <= 0.0:
 		phase = want
 		seq_index = 0
-		timer = minf(timer, 0.35)
+		break_gauge = 0.0
+		stun = 0.0
+		_mercy = CFG.BOSS_MERCY_WINDOW
+		timer = CFG.BOSS_INITIAL_CD
 		cast_label = "阶段 %d" % (phase + 1)
 		telegraph = CFG.BOSS_TELEGRAPH
-	desperate = frac <= CFG.BOSS_DESPERATE_FRAC
+		if on_phase_change.is_valid():
+			on_phase_change.call(phase)
+
+	# 临界：一次性触发（Unity：phase2 + frac<0.12 + idle → hitstop + announce）
+	if not _desperate_fired and phase >= 2 and frac <= CFG.BOSS_DESPERATE_FRAC \
+			and not casting and telegraph <= 0.0:
+		_desperate_fired = true
+		desperate = true
+		timer = CFG.BOSS_DESPERATE_CD
+		seq_index = 0
+		cast_label = "核心临界"
+		telegraph = CFG.BOSS_TELEGRAPH
+		if on_desperate.is_valid():
+			on_desperate.call()
+	elif _desperate_fired:
+		desperate = true
 
 	if telegraph > 0.0:
 		telegraph -= dt
@@ -187,6 +209,7 @@ func tick(dt: float, player_pos: Vector2) -> void:
 			casting = false
 			cast_label = ""
 			chain_count += 1
+			_end_move(player_pos)
 			timer = _next_timer()
 		return
 
@@ -195,11 +218,18 @@ func tick(dt: float, player_pos: Vector2) -> void:
 		telegraph = CFG.BOSS_TELEGRAPH
 		return
 
-	# 待机小弹
-	_emit_t -= dt
-	if _emit_t <= 0.0:
-		_emit_t = CFG.BOSS_IDLE_FIRE_PHASE2 if phase >= 1 else CFG.BOSS_IDLE_FIRE_PHASE1
-		_aim_shot(player_pos, _boss_speed() * 0.55, 6.0, _tint())
+	# 待机小弹：仅 phase≥1，mercy 期间抑制（Unity IdleFire）
+	if phase >= 1 and _mercy <= 0.0:
+		_idle_t -= dt
+		if _idle_t <= 0.0:
+			_idle_t = CFG.BOSS_IDLE_FIRE_PHASE2 if phase >= 2 else CFG.BOSS_IDLE_FIRE_PHASE1
+			var sp := _boss_speed() * 0.92
+			var aim := (player_pos - pos).angle()
+			if phase >= 2:
+				_shot(pos, aim - 0.22, sp, 5.0, _tint(), "needle")
+				_shot(pos, aim + 0.22, sp, 5.0, _tint(), "needle")
+			else:
+				_shot(pos, aim, sp, 5.0, _tint(), "needle")
 
 
 func _next_move() -> int:
@@ -223,8 +253,24 @@ func _next_timer() -> float:
 	return CFG.boss_spell_cd(phase, tier, chain_count, desperate)
 
 
+## 招式结束时的自由环（Unity EndMove：phase3 概率补一圈慢弹）
+func _end_move(p: Vector2) -> void:
+	if phase < 2:
+		return
+	var chance := CFG.BOSS_DESPERATE_RING_OTHER_TIER if tier > 0 else CFG.BOSS_DESPERATE_RING_NORMAL
+	if desperate:
+		chance = CFG.BOSS_DESPERATE_RING_HARDEST if tier > 0 else CFG.BOSS_DESPERATE_RING_HARD
+	if randf() >= chance:
+		return
+	var n := CFG.BOSS_FREE_RING_DESPERATE if desperate else CFG.BOSS_FREE_RING_NORMAL
+	var sp := _boss_speed() * CFG.BOSS_FREE_RING_SPEED_MUL
+	_ring(n, sp, 5.0, _tint(), randf() * TAU)
+
+
 func _boss_speed() -> float:
-	return (CFG.BOSS_BULLET_SPEED_BASE + CFG.BOSS_BULLET_SPEED_PER_TIER * tier) / float(CFG.BOSS_BULLET_SPEED_DIV[clampi(phase, 0, 2)])
+	return (CFG.BOSS_BULLET_SPEED_BASE + CFG.BOSS_BULLET_SPEED_PER_TIER * tier) \
+		* float(CFG.BOSS_BULLET_SPEED_DIV[clampi(phase, 0, 2)]) \
+		* float(diff.get("bossBullet", 1.0))
 
 
 func _tint() -> Color:
@@ -277,12 +323,12 @@ func _cast_tick(dt: float, p: Vector2) -> void:
 			if _emit_t <= 0.0:
 				_emit_t = 0.62
 				_ring(14 if phase >= 1 else 10, sp * 0.8, 6.0, col, age * 0.9)
-		3:  # 追踪星群
+		3:  # 追踪星群（Unity：homing 2.6s / turn 1.9 / speed×0.58）
 			if _emit_t <= 0.0:
 				_emit_t = 0.26
 				for i in range(3):
 					var a := (p - pos).angle() + (i - 1) * deg_to_rad(6.0)
-					_shot(pos, a, sp * 1.05, 7.0, col)
+					_shot(pos, a, sp * 0.58, 7.0, Color(0.61, 0.55, 1.0), "seeker")
 		4:  # 双生扫射
 			if _emit_t <= 0.0:
 				_emit_t = 0.07
@@ -448,7 +494,6 @@ func take_damage(dmg: float) -> bool:
 		break_gauge = 0.0
 		stun = CFG.BOSS_BREAK_STUN
 		timer = CFG.boss_resume_timer(timer)
-		telegraph = 0.0
 		return true
 	return false
 

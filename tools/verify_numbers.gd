@@ -87,12 +87,32 @@ func _initialize() -> void:
 	_eq(failures, "beh.bossCd.p2", CFG.boss_spell_cd(1, 0, 1, false), 0.62)
 	_eq(failures, "beh.bossCd.p3", CFG.boss_spell_cd(2, 1, 1, false), 0.42)
 	_eq(failures, "beh.bossCd.chain", CFG.boss_spell_cd(2, 0, 4, false), 0.16)
-	_eq(failures, "beh.bossCd.desperate", CFG.boss_spell_cd(2, 0, 1, true), 0.45)
+	_eq(failures, "beh.bossCd.desperate", CFG.boss_spell_cd(2, 0, 1, true), 0.16)
 	# 破防醒来补招封顶 0.55；NaN/Inf 不许卡死
 	_eq(failures, "beh.bossResume.clamp", CFG.boss_resume_timer(5.0), 0.55)
 	_eq(failures, "beh.bossResume.keep", CFG.boss_resume_timer(0.2), 0.2)
 	_eq(failures, "beh.bossResume.nan", CFG.boss_resume_timer(NAN), 0.55)
 	_eq(failures, "beh.bossResume.inf", CFG.boss_resume_timer(INF), 0.55)
+	# Boss 弹速：阶段乘数（×不是÷）+ 难度系数
+	_eq(failures, "beh.bossSpeed.p0", (CFG.BOSS_BULLET_SPEED_BASE + CFG.BOSS_BULLET_SPEED_PER_TIER * 0) * CFG.BOSS_BULLET_SPEED_DIV[0] * 1.0, 152.0)
+	_eq(failures, "beh.bossSpeed.p2", (CFG.BOSS_BULLET_SPEED_BASE + CFG.BOSS_BULLET_SPEED_PER_TIER * 0) * CFG.BOSS_BULLET_SPEED_DIV[2] * 1.0, 152.0 * 1.18)
+	_eq(failures, "beh.bossSpeed.abyss", (CFG.BOSS_BULLET_SPEED_BASE) * 1.0 * 1.12, 152.0 * 1.12)
+	# 星爆经济常量
+	_eq(failures, "beh.nova.detunedMul", CFG.DETUNED_NOVA_MUL, 0.45)
+	_eq(failures, "beh.nova.hitEnemy", CFG.NOVA_ON_HIT_ENEMY, 0.06)
+	_eq(failures, "beh.nova.hitBoss", CFG.NOVA_ON_HIT_BOSS, 0.12)
+	_eq(failures, "beh.nova.bossFrac", CFG.NOVA_BOSS_DAMAGE_FRAC, 0.06)
+	_eq(failures, "beh.nova.bossFlat", CFG.NOVA_BOSS_DAMAGE_FLAT, 30.0)
+	# 超频击杀延长
+	_eq(failures, "beh.od.killExtend", CFG.OVERDRIVE_KILL_EXTEND, 0.11)
+	_eq(failures, "beh.od.eliteExtend", CFG.OVERDRIVE_ELITE_KILL_EXTEND, 0.26)
+	_eq(failures, "beh.od.max", CFG.OVERDRIVE_MAX, 9.5)
+	# 反射护盾
+	_eq(failures, "beh.reflect.duration", CFG.REFLECT_DURATION, 8.0)
+	_eq(failures, "beh.reflect.invuln", CFG.INVULN_AFTER_REFLECT, 1.5)
+	_eq(failures, "beh.reflect.nova", CFG.NOVA_ON_REFLECT_SAVE, 4.0)
+	# 僚机点防封顶
+	_eq(failures, "beh.aegis.cap", CFG.AEGIS_PD_CLEAR_COUNT, 4)
 
 	# ---- 武器经济纯函数（WeaponSystem）----
 	_eq(failures, "beh.weapon.interval.pulse2", WeaponSystem.interval("pulse", 2, false, false), 0.108)

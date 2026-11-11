@@ -3,6 +3,7 @@ extends RefCounted
 
 ## 碰撞与击杀结算：玩家弹 vs 敌机/Boss、敌弹/机体 vs 玩家、击杀奖励与受击。
 ## 所有状态仍由 Main 持有，本模块只负责结算顺序。
+## 对齐归档 Unity v0.21.14：相位标记不删弹、受击分级、反射免死、星爆命中充能。
 
 const CFG := preload("res://scripts/game_config.gd")
 
@@ -34,6 +35,7 @@ func resolve() -> void:
 				if m.fx != null:
 					m.fx.hit(b.pos, m._html_color("#FFF0C2"))
 				m.score += int(roundf(10.0 * float(diff["scoreMul"])))
+				m._gain_nova(CFG.NOVA_ON_HIT_BOSS)
 				if b.pierce_left > 0:
 					b.pierce_left -= 1
 				else:
@@ -50,6 +52,7 @@ func resolve() -> void:
 				if m.fx != null:
 					m.fx.hit(b.pos, Color(1.0, 0.92, 0.68))
 				b.hit_enemies.append(e)
+				m._gain_nova(CFG.NOVA_ON_HIT_ENEMY)
 				if e.hp <= 0.0:
 					kill_enemy(ei, diff)
 				if b.pierce_left > 0:
@@ -65,12 +68,16 @@ func resolve() -> void:
 ## 玩家受击 / 擦弹判定：每帧独立结算，不能放进击杀回调。
 ## 对齐 web 版 collide()：先擦弹（命中半径之外），再命中，最后机体接触。
 func resolve_player_hazards() -> void:
-	# 相位（冲刺期间）：擦身敌弹被消除，换分与星爆（对齐 web Phase* 常量）
+	# 命中中心：玩家位置下方 2px（Unity：pos - up×2，y-down 即 +2）
+	var hit_center: Vector2 = m.player_pos + Vector2(0, 2.0)
+	# 相位（冲刺期间）：标记 phased 而非删除（Unity：b.Phased=true，不 splice）
 	if m.dash_t > 0.0:
 		for i in range(m.enemy_bullets.size() - 1, -1, -1):
 			var pb = m.enemy_bullets[i]
-			if pb.pos.distance_to(m.player_pos) <= CFG.PHASE_RADIUS + pb.radius:
-				m.enemy_bullets.remove_at(i)
+			if pb.phased:
+				continue
+			if pb.pos.distance_to(hit_center) <= CFG.PHASE_RADIUS + pb.radius:
+				pb.phased = true
 				m.score += CFG.PHASE_SCORE_PER_BULLET
 				m._gain_nova(CFG.PHASE_NOVA_PER_BULLET)
 				m._spawn_mote(pb.pos)
@@ -78,7 +85,9 @@ func resolve_player_hazards() -> void:
 		return
 	for i in range(m.enemy_bullets.size() - 1, -1, -1):
 		var b = m.enemy_bullets[i]
-		var d2 := _seg_point_d2(b.prev, b.pos, m.player_pos)
+		if b.phased:
+			continue
+		var d2 := _seg_point_d2(b.prev, b.pos, hit_center)
 		var hit_r: float = CFG.PLAYER_HIT_R + b.radius
 		var graze_r: float = CFG.PLAYER_GRAZE_R + b.radius
 		if not b.grazed and d2 <= graze_r * graze_r and d2 > hit_r * hit_r:
@@ -92,7 +101,7 @@ func resolve_player_hazards() -> void:
 			return
 	for en: Enemy in m.enemies:
 		var rr: float = CFG.PLAYER_HIT_R + en.hit_r
-		if m.player_pos.distance_squared_to(en.pos) <= rr * rr:
+		if hit_center.distance_squared_to(en.pos) <= rr * rr:
 			player_hit()
 			return
 
@@ -104,6 +113,10 @@ func kill_enemy(index: int, diff: Dictionary) -> void:
 	m._add_combo()
 	m.total_kills += 1
 	m.waves.zone_kills += 1
+	# 超频击杀延长（Unity：0.11/0.26，封顶 OverdriveMax）
+	if m.overdrive > 0.0:
+		var ext := CFG.OVERDRIVE_ELITE_KILL_EXTEND if e.elite else CFG.OVERDRIVE_KILL_EXTEND
+		m.overdrive = minf(CFG.OVERDRIVE_MAX, m.overdrive + ext)
 	var at := e.pos
 	var was_volatile := e.affix == "volatile"
 	var was_splitter := e.kind == "splitter"
@@ -133,22 +146,45 @@ func player_hit() -> void:
 	if m.fx != null:
 		m.fx.explode(m.player_pos, m._html_color("#FF6B7A"), 34.0, true)
 	m._add_shake(10.0, 0.36)
-	# 护盾优先，掉了只丢一层；护盾耗尽才吃船体
+	# 反射护盾一次免死（Unity：ReflectT>0 → 消耗、invuln 1.5、nova+4 raw、清弹）
+	if m.reflect_t > 0.0:
+		m.reflect_t = 0.0
+		m.player_invuln = CFG.INVULN_AFTER_REFLECT
+		m._gain_nova_raw(CFG.NOVA_ON_REFLECT_SAVE)
+		m.enemy_bullets.clear()
+		m._feel_freeze(CFG.FREEZE_HIT)
+		return
+	# 护盾优先：掉了只丢一层，不清弹（Unity：shield break 不 clear）
 	if m.player_shields > 0:
 		m.player_shields -= 1
 		m.player_invuln = CFG.INVULN_AFTER_SHIELD
-		m._gain_nova(CFG.NOVA_ON_SHIELD_BREAK)
+		m._gain_nova_raw(CFG.NOVA_ON_SHIELD_BREAK)
 		m._feel_freeze(CFG.FREEZE_HIT)
 	else:
+		# 船体受击：清弹、慢镜、武器惩罚、丢僚机、重生位移
 		m.player_lives -= 1
 		m.player_invuln = CFG.INVULN_AFTER_HULL_HIT
-		m._gain_nova(CFG.NOVA_ON_HULL_HIT)
+		m._gain_nova_raw(CFG.NOVA_ON_HULL_HIT)
 		m._feel_slow(CFG.SLOW_HIT_SCALE, CFG.SLOW_HIT_DUR)
+		m._feel_freeze(CFG.FREEZE_HIT)
 		m.combo = 0
 		m.multiplier = 1
 		m.combo_timer = 0.0
-	m.enemy_bullets.clear()
-	m.weapons.active().charge = maxf(0.0, m.weapons.active().charge - CFG.HIT_CHARGE_PENALTY)
+		m.enemy_bullets.clear()
+		# 武器惩罚：蓄能 -45、共鸣清零、等级 -1、失谐检查（Unity OnPlayerHit）
+		var active: WeaponSystem.LineState = m.weapons.active()
+		active.charge = maxf(0.0, active.charge - CFG.HIT_CHARGE_PENALTY)
+		m.weapons.resonance = 0.0
+		if active.charge <= 0.5:
+			active.detuned = true
+		if active.level > 1:
+			active.level -= 1
+		# 击落一架僚机（Unity DestroyOneDrone）
+		if m.drones.size() > 0:
+			m.drones.pop_back()
+		# 重生位移到底部安全区（Unity RespawnY）
+		m.player_pos = Vector2(m.view_size.x * 0.5,
+			m.view_size.y - CFG.RESPAWN_INSET - m.safe_bottom)
 	if m.player_lives <= 0:
 		m.game_over = true
 		m.game_over_time = 0.0

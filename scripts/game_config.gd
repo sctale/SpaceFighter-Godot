@@ -505,11 +505,10 @@ static func enemy_bullet_speed(tier: int, bullet_speed_mul: float) -> float:
 
 
 ## Boss 出招间隔：阶段基础间隔，链招/临界压到地板（entities.js:1945-1967）。
+## Unity：desperate 在 phase2 时走链招 0.16（不是固定 0.45）。
 static func boss_spell_cd(phase: int, tier: int, chain_count: int, desperate: bool) -> float:
-	if desperate:
-		return BOSS_DESPERATE_CD
 	var chain_every := BOSS_CHAIN_EVERY_TIER0 if tier == 0 else BOSS_CHAIN_EVERY_OTHER_TIER
-	if phase >= 2 and chain_count > 0 and chain_count % chain_every == 0:
+	if phase >= 2 and (desperate or (chain_count > 0 and chain_count % chain_every == 0)):
 		return BOSS_CHAIN_CD
 	return maxf(BOSS_SPELL_CD_FLOOR, BOSS_SPELL_CD[clampi(phase, 0, 2)])
 
