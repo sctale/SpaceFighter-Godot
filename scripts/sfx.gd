@@ -12,6 +12,7 @@ var _hit: AudioStreamWAV
 var _boom: AudioStreamWAV
 var _pick: AudioStreamWAV
 var _nova: AudioStreamWAV
+var _click: AudioStreamWAV
 
 
 func _ready() -> void:
@@ -25,6 +26,8 @@ func _ready() -> void:
 	_boom = _noise(0.32, 0.85, 2200.0)
 	_pick = _sweep(520.0, 1100.0, 0.12, 0.4)
 	_nova = _sweep(180.0, 900.0, 0.45, 0.6)
+	# UI 按钮轻点音：短促高频、低音量，与射击/拾取明显区分
+	_click = _tone(1500.0, 0.035, 0.22, 70.0)
 
 
 func _play(stream: AudioStream) -> void:
@@ -55,6 +58,10 @@ func play_pick() -> void:
 
 func play_nova() -> void:
 	_play(_nova)
+
+
+func play_click() -> void:
+	_play(_click)
 
 
 # ---- 波形生成 ----

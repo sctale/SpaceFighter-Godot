@@ -4,7 +4,6 @@ const CFG := preload("res://scripts/game_config.gd")
 
 const PLAYER_BULLET_RADIUS := 5.0
 const ENEMY_BULLET_RADIUS := 6.0
-const GAME_OVER_TAP_DELAY := 0.6
 
 # 美术契约（与归档 Unity 版 ShipArt.cs 一致）：PNG 画布的最大半径 = 0.46 × 边长，
 # 所以"视觉外缘 = 判定半径"时，画布边长 = radius / 0.46。
@@ -77,6 +76,8 @@ var player_lives := 3
 var player_invuln := 0.0
 var player_bank := 0.0
 var player_last_dir := 0.0
+var hurt_flash := 0.0     # 纯视觉：船体受击屏幕边缘红闪，main 衰减、UIOverlay 只读
+var shield_flash := 0.0   # 纯视觉：护盾破碎/获得屏幕边缘青闪，main 衰减、UIOverlay 只读
 
 
 # 武器与玩家生存/技能（迁移C）
@@ -95,6 +96,7 @@ var multiplier := 1
 
 # 界面状态 / 存档 / 音效
 var in_menu := true
+var settings_open := false
 var best_score := 0
 var sfx: Sfx
 var music: MusicPlayer
@@ -298,6 +300,13 @@ func _ready() -> void:
 		elif _shot_mode == "pause" or _shot_mode == "gameover":
 			in_menu = false
 			_reset_game()
+		elif _shot_mode == "hurt":
+			# 纯视觉验收：受击/护盾边缘闪（DevShots）
+			in_menu = false
+			_reset_game()
+		elif _shot_mode == "settings":
+			in_menu = true
+			settings_open = true
 		_shot_taken = false
 
 
@@ -391,7 +400,9 @@ func _save_best() -> void:
 	if score <= best_score:
 		return
 	best_score = score
+	# A1 修复：先 load 再合并写回，避免新 ConfigFile 直接 save 抹掉 [opt] 偏好。
 	var cfg := ConfigFile.new()
+	cfg.load("user://save.cfg")
 	cfg.set_value("score", "best", best_score)
 	cfg.save("user://save.cfg")
 
@@ -582,6 +593,10 @@ func _process(delta: float) -> void:
 	if _shot_mode != "" and not _shot_taken:
 		_shot_t += delta
 		var wait := 3.6 if (_shot_mode == "play" or _shot_mode.begins_with("boss")) else 1.6
+		if _shot_mode == "bossdeploy":
+			wait = 0.15
+		elif _shot_mode == "hurt":
+			wait = 1.2
 		if _shot_mode == "demo":
 			wait = 4.8
 		elif _shot_mode == "action":
@@ -601,6 +616,9 @@ func _process(delta: float) -> void:
 			rift = 32
 			total_kills = 120
 			best_score = 60000
+		if _shot_mode == "hurt" and _shot_t > wait - 0.3:
+			hurt_flash = 0.7
+			shield_flash = 0.6
 		if _shot_t > wait:
 			_shot_taken = true
 			var dir := ProjectSettings.globalize_path("res://build/shots")
@@ -616,6 +634,15 @@ func _process(delta: float) -> void:
 		confirm_t = maxf(0.0, confirm_t - delta)
 		if confirm_t <= 0.0:
 			confirm_action = ""
+	# B2 解耦：表现层缓动/衰减归 main 自有字段驱动（所有状态都走真实时间），
+	# UIOverlay 只读不写，搬动 UI 不会漏掉分数/Boss 条/边缘闪的驱动。
+	display_score = lerpf(display_score, float(score), 1.0 - exp(-7.0 * delta))
+	if boss != null:
+		display_boss_hp = lerpf(display_boss_hp, boss.hp_frac(), 1.0 - exp(-6.0 * delta))
+	else:
+		display_boss_hp = 1.0
+	hurt_flash = maxf(0.0, hurt_flash - delta)
+	shield_flash = maxf(0.0, shield_flash - delta)
 	if in_menu:
 		return
 	if paused:
@@ -1355,6 +1382,7 @@ func _apply_crate(kind: String) -> void:
 		"shield":
 			if player_shields < CFG.MAX_SHIELDS:
 				player_shields += 1
+				shield_flash = 0.6
 				label = "护盾 %d/%d" % [player_shields, CFG.MAX_SHIELDS]
 			else:
 				score += CFG.CRATE_FULL_SHIELD_SCORE
@@ -1526,6 +1554,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if in_menu:
+			if settings_open:
+				if event.keycode == KEY_ESCAPE:
+					settings_open = false
+				return
 			if event.keycode == KEY_ENTER or event.keycode == KEY_SPACE:
 				_start_run()
 			elif event.keycode == KEY_1:
@@ -1627,6 +1659,10 @@ func _handle_ui_action(action: String) -> bool:
 			difficulty = "abyss"
 		"start":
 			_start_run()
+		"settings":
+			settings_open = true
+		"settings_back":
+			settings_open = false
 		"pause":
 			paused = true
 			if music != null:
@@ -1664,8 +1700,10 @@ func _handle_ui_action(action: String) -> bool:
 		"opt_music":
 			opt_music = not opt_music
 			_apply_opts()
-			if opt_music and music != null:
+			# 菜单里不播战斗 BGM；暂停中切换只记开关不 resume（修 A2）
+			if opt_music and music != null and not in_menu:
 				music.play_zone(int(zone))
+				music.set_paused(paused)
 			_save_opts()
 		"opt_sfx":
 			opt_sfx = not opt_sfx
@@ -1692,6 +1730,7 @@ func _to_menu() -> void:
 	_save_best()
 	_reset_upgrades()
 	in_menu = true
+	settings_open = false
 	paused = false
 	game_over = false
 	won = false
