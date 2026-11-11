@@ -93,3 +93,33 @@
   对象池只增复杂度无实测收益。低端机帧耗留 Phase 7 实测。
 - **B3 收尾**：WARNING 横幅硬编码色收编为 WARNING_BG / WARNING_TINT / WARNING_TEXT Token；
   三选一默认 tint 改读 skin.ACCENT_BLUE，移除 "#26C6F6" 散点。
+
+## Phase 7 复验结论（2026-11-11 补记，桌面侧）
+
+- **C4/C5 在窗口层结构性不成立**：project.godot stretch=canvas_items + aspect=expand，
+  实测视口恒 ≥540×960（360×640 窗→540×960 等比缩放；800×600→1280×960；300×900→540×1620）。
+  Phase 0 报告按"视口=窗口尺寸"假设的像素溢出/重叠推算在此 stretch 配置下不成立。
+  1280×960 与 540×1620 两极端比例下 play/pause/gameover/upgrade 截图：模态居中、HUD 四角锚定、无溢出。
+- 模态高度唯一收缩变量是移动端 safe area（st/sb），竖屏锁定下实测复核（模拟器/真机）。
+- **SwiftShader 软渲染黑屏属引擎限制**：Godot 4.7 内建 Scene/CanvasShaderGLES3 在
+  GL_MAX_FRAGMENT_UNIFORM_VECTORS=261 下链接失败（非项目自定义 shader；planet_orb 仅 9 uniform）。
+  模拟器验收改用 -gpu host；backdrop.gd 对自定义星云 shader 已有 SwiftShader 降级。
+
+## Phase 7 复验结论（2026-11-12 补记，Android 侧 + A3 修复）
+
+- **A3（新发现真 bug，已修）：Android 触屏双触发**。Godot 默认
+  `emulate_mouse_from_touch=true`，一次物理点按先后派发 InputEventMouseButton 与
+  InputEventScreenTouch，main._unhandled_input 两个分支都处理 → 切换型动作执行两次互相抵消
+  （设置开关"点了没反应"）；非切换型（齿轮开设置）因第二次落点不在热区而表现正常，极具迷惑性。
+  证据：临时调试日志同一次点按出现两次热区命中（mouse 分支先、touch 分支后）；
+  桌面探针 SETTINGS_PROBE_OK 排除布局/逻辑问题。修复：project.godot
+  `[input_devices] pointing/emulate_mouse_from_touch=false`（桌面真实鼠标不受影响）。
+- **E2E 全绿**（test-android-36 模拟器，-gpu host，1080×1920=2×设计坐标，safe=0）：
+  菜单渲染 → 齿轮进设置 → 单击音乐=关、三开关全关（android_settings4/5.png）→
+  强杀重启仍全关（持久化，android_settings6.png）→ 恢复全开 → 返回→开始→战斗 HUD
+  （android_play.png）→ 暂停（android_pause.png）→ 继续巡航恢复战斗（android_resume.png）。
+  全程 logcat `SCRIPT ERROR` = 0。
+- **C4/C5 Android 侧 likewise 不成立**：模态居中、HUD 四角锚定，无溢出无遮挡（见上述截图）。
+- **性能参考值**：x86_64 模拟器 + arm64 翻译层 + host GPU，gfxinfo 50th=26ms / 90th=40ms /
+  99th=73ms（仅翻译层环境参考，非真机数据）；战斗/暂停截图无掉帧撕裂迹象，
+  粒子/飘字硬上限（420/40）未触顶。真机帧耗待用户设备反馈。
