@@ -3,7 +3,7 @@ extends RefCounted
 
 const CFG := preload("res://scripts/game_config.gd")
 
-## 战斗 HUD：奶油贴纸面板 + 糖果色状态条 + 右下角圆形技能键。
+## 战斗 HUD：暗色科幻面板 + 蓝青状态条 + 右下角圆形技能键。颜色走 UISkin Token。
 ## 所有坐标跟随 CFG.VIEW / 安全区，长屏会自动把底栏压到导航栏上方。
 
 static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
@@ -18,7 +18,7 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 	rects["pause"] = pause_r
 
 	# 分数板
-	skin.panel(ci, score_r, Color(1, 1, 1, 0.93), 18.0, skin.INK, 3.0, true)
+	skin.panel(ci, score_r, Color(skin.BG_PANEL.r, skin.BG_PANEL.g, skin.BG_PANEL.b, 0.93), 18.0, skin.BORDER, 3.0, true)
 	skin.text(ci, score_r.position + Vector2(16, 22), "得分", 11, skin.INK_SOFT)
 	skin.text(ci, score_r.position + Vector2(16, 56),
 		"%d" % int(round(float(main.display_score))), 30, skin.INK)
@@ -30,35 +30,35 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 	var combo := int(main.multiplier)
 	if combo > 1:
 		var chip := Rect2(score_r.position.x + 116.0, score_r.position.y + 10.0, 74.0, 36.0)
-		skin.panel(ci, chip, skin.GOLD, 12.0, skin.INK, 2.5, false)
+		skin.panel(ci, chip, skin.GOLD, 12.0, skin.BORDER, 2.5, false)
 		skin.text_center(ci, chip.position.x + chip.size.x * 0.5, chip.position.y + 24.0,
-			"×%d" % combo, 21, skin.INK, 0)
+			"×%d" % combo, 21, skin.BG_PRIMARY, 0)
 		var k := clampf(float(main.combo_timer) / 2.8, 0.0, 1.0)
 		ci.draw_rect(Rect2(chip.position.x + 10.0, chip.end.y - 7.0,
-			(chip.size.x - 20.0) * k, 2.5), skin.INK)
+			(chip.size.x - 20.0) * k, 2.5), skin.BG_PRIMARY)
 
 	# 船体板
-	skin.panel(ci, hull_r, Color(1, 1, 1, 0.93), 18.0, skin.INK, 3.0, true)
+	skin.panel(ci, hull_r, Color(skin.BG_PANEL.r, skin.BG_PANEL.g, skin.BG_PANEL.b, 0.93), 18.0, skin.BORDER, 3.0, true)
 	skin.text(ci, hull_r.position + Vector2(14, 21), "船 体", 11, skin.INK_SOFT)
 	var lives := int(main.player_lives)
 	var max_h := mini(CFG.UPGRADE_MAX_HULL, maxi(3, int(main.upgrades.get("max_hull", 3))))
 	for i in range(max_h):
 		var on := i < lives
 		skin.icon_ship(ci, hull_r.position + Vector2(24 + i * 20.0, 42.0), 9.0,
-			skin.PINK_DEEP if on else Color(skin.INK.r, skin.INK.g, skin.INK.b, 0.18))
+			skin.PINK_DEEP if on else Color(skin.TEXT_SECONDARY.r, skin.TEXT_SECONDARY.g, skin.TEXT_SECONDARY.b, 0.25))
 	var shields := int(main.player_shields)
 	for i in range(3):
 		var on := i < shields
 		skin.icon_shield(ci, hull_r.position + Vector2(106 + i * 17.0, 42.0), 7.0,
-			skin.CYAN_DEEP if on else Color(skin.INK.r, skin.INK.g, skin.INK.b, 0.15))
+			skin.CYAN_DEEP if on else Color(skin.TEXT_SECONDARY.r, skin.TEXT_SECONDARY.g, skin.TEXT_SECONDARY.b, 0.22))
 	skin.text_right(ci, hull_r.end.x - 14.0, hull_r.position.y + 68.0,
 		String(CFG.DIFFICULTY[String(main.difficulty)]["name"]), 10,
 		Color(skin.INK_SOFT.r, skin.INK_SOFT.g, skin.INK_SOFT.b, 0.75))
 
 	# 暂停
-	skin.panel(ci, pause_r, skin.PAPER, 16.0, skin.INK, 3.0, true)
+	skin.panel(ci, pause_r, skin.PAPER, 16.0, skin.BORDER, 3.0, true)
 	if pressed == "pause":
-		skin.panel(ci, Rect2(pause_r.position + Vector2(0, 2), pause_r.size), skin.CREAM, 16.0, skin.INK, 3.0, false)
+		skin.panel(ci, Rect2(pause_r.position + Vector2(0, 2), pause_r.size), skin.CREAM, 16.0, skin.BORDER, 3.0, false)
 	skin.icon_pause(ci, pause_r.get_center(), 10.0, skin.INK)
 
 	# 星区胶囊 / Boss 血条
@@ -68,12 +68,12 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 		var bar_x := (vw - bar_w) * 0.5
 		var bar_y := top + 112.0
 		var name_r := Rect2(vw * 0.5 - 142.0, bar_y - 32.0, 284.0, 28.0)
-		skin.panel(ci, name_r, skin.CREAM, 10.0, skin.INK, 2.5, false)
+		skin.panel(ci, name_r, skin.CREAM, 10.0, skin.BORDER, 2.5, false)
 		skin.text_center(ci, vw * 0.5, name_r.position.y + 20.0,
 			"%s · %s  P%d" % [String(boss.title_zh), String(boss.name_zh), int(boss.phase) + 1],
 			13, skin.INK, 0)
 		var bar_r := Rect2(bar_x, bar_y, bar_w, 18.0)
-		skin.panel(ci, bar_r, Color(0.15, 0.11, 0.20, 0.92), 9.0, skin.INK, 3.0, false)
+		skin.panel(ci, bar_r, Color(skin.BG_PRIMARY.r, skin.BG_PRIMARY.g, skin.BG_PRIMARY.b, 0.92), 9.0, skin.BORDER, 3.0, false)
 		var frac := clampf(float(main.display_boss_hp), 0.0, 1.0)
 		if frac > 0.0:
 			var inner := Rect2(bar_r.position + Vector2(3, 3), Vector2((bar_r.size.x - 6.0) * frac, 12.0))
@@ -92,7 +92,7 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 			status_chip(ci, skin, vw * 0.5, status_y, "临界", skin.GOLD)
 	else:
 		var zone_r := Rect2(score_r.position.x, score_r.end.y + 8.0, 150.0, 26.0)
-		skin.panel(ci, zone_r, Color(1, 1, 1, 0.82), 10.0, skin.INK, 2.0, false)
+		skin.panel(ci, zone_r, Color(skin.BG_PANEL.r, skin.BG_PANEL.g, skin.BG_PANEL.b, 0.82), 10.0, skin.BORDER, 2.0, false)
 		ci.draw_circle(zone_r.position + Vector2(16, 13), 5.0, skin.CYAN)
 		ci.draw_arc(zone_r.position + Vector2(16, 13), 8.0, 0.2, 2.4, 16,
 			Color(1, 1, 1, 0.55), 1.5, true)
@@ -100,13 +100,13 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 		ci.draw_rect(Rect2(zone_r.position.x + 8.0, zone_r.end.y - 4.0,
 			(zone_r.size.x - 16.0) * float(main.zone_progress()), 2.5), skin.CYAN_DEEP)
 		var rift_r := Rect2(zone_r.end.x + 8.0, zone_r.position.y, 92.0, 26.0)
-		skin.panel(ci, rift_r, Color(1, 1, 1, 0.82), 10.0, skin.INK, 2.0, false)
+		skin.panel(ci, rift_r, Color(skin.BG_PANEL.r, skin.BG_PANEL.g, skin.BG_PANEL.b, 0.82), 10.0, skin.BORDER, 2.0, false)
 		skin.icon_burst(ci, rift_r.position + Vector2(16, 13), 6.5, skin.CYAN, 4)
 		skin.text(ci, rift_r.position + Vector2(28, 18), "裂隙 %d" % int(main.rift), 11, skin.INK)
 
 	# 武器板
 	var wp_r := Rect2(safe_left + 14.0, bottom - 86.0, 216.0, 86.0)
-	skin.panel(ci, wp_r, Color(1, 1, 1, 0.93), 18.0, skin.INK, 3.0, true)
+	skin.panel(ci, wp_r, Color(skin.BG_PANEL.r, skin.BG_PANEL.g, skin.BG_PANEL.b, 0.93), 18.0, skin.BORDER, 3.0, true)
 	var wdef: Dictionary = CFG.WEAPON_LINES[String(main.weapons.active_id)]
 	var wtint := Color.html(String(wdef["tint"]))
 	ci.draw_circle(wp_r.position + Vector2(27, 32), 18.0, Color(wtint.r, wtint.g, wtint.b, 0.18))
@@ -116,14 +116,14 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 		CFG.weapon_name(String(main.weapons.active_id), int(main.weapons.active().level)), 17, skin.INK)
 	var lv := int(main.weapons.active().level)
 	var lv_r := Rect2(wp_r.end.x - 54.0, wp_r.position.y + 10.0, 42.0, 22.0)
-	skin.panel(ci, lv_r, wtint, 8.0, skin.INK, 2.0, false)
-	skin.text_center(ci, lv_r.get_center().x, lv_r.position.y + 16.0, "LV%d" % lv, 11, skin.INK, 0)
+	skin.panel(ci, lv_r, wtint, 8.0, skin.BORDER, 2.0, false)
+	skin.text_center(ci, lv_r.get_center().x, lv_r.position.y + 16.0, "LV%d" % lv, 11, skin.BG_PRIMARY, 0)
 	var charge := clampf(float(main.weapons.active().charge) / 100.0, 0.0, 1.0)
 	var bar := Rect2(wp_r.position + Vector2(52, 48), Vector2(146, 9))
-	skin.panel(ci, bar, Color(0.15, 0.11, 0.20, 0.20), 4.0, Color(0, 0, 0, 0), 0.0, false)
+	skin.panel(ci, bar, Color(skin.BG_PRIMARY.r, skin.BG_PRIMARY.g, skin.BG_PRIMARY.b, 0.45), 4.0, Color(0, 0, 0, 0), 0.0, false)
 	if charge > 0.01:
 		skin.panel(ci, Rect2(bar.position, Vector2(bar.size.x * charge, bar.size.y)),
-			Color(1.0, 0.42, 0.30) if bool(main.weapons.active().detuned) else wtint,
+			skin.RED if bool(main.weapons.active().detuned) else wtint,
 			4.0, Color(0, 0, 0, 0), 0.0, false)
 	if bool(main.weapons.active().detuned):
 		skin.text(ci, wp_r.position + Vector2(52, 74), "失谐排气", 10, skin.RED)
@@ -148,7 +148,7 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 	rects["dash"] = Rect2(dash_c - Vector2(dash_r, dash_r), Vector2(dash_r * 2, dash_r * 2))
 	rects["weapon"] = Rect2(swap_c - Vector2(swap_r, swap_r), Vector2(swap_r * 2, swap_r * 2))
 	var nova_ready := float(main.nova) >= 100.0
-	action_button(ci, skin, nova_c, nova_r, skin.GOLD if nova_ready else Color("#F6E3B4"),
+	action_button(ci, skin, nova_c, nova_r, skin.GOLD if nova_ready else Color("#2A3A52"),
 		"burst", "星爆", "%d%%" % int(float(main.nova)), float(main.nova) / 100.0,
 		skin.GOLD_DEEP, pressed == "nova", nova_ready)
 	action_button(ci, skin, dash_c, dash_r, skin.CYAN, "chevron", "冲刺",
@@ -156,7 +156,7 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 		1.0 - clampf(float(main.dash_cd) / CFG.DASH_COOLDOWN, 0.0, 1.0),
 		skin.CYAN_DEEP, pressed == "dash", float(main.dash_cd) <= 0.0)
 	var can_swap := int(main.weapons.unlocked_count()) >= 2
-	var swap_tint := wtint if can_swap else Color("#C9C3D4")
+	var swap_tint := wtint if can_swap else Color("#2A3A52")
 	action_button(ci, skin, swap_c, swap_r, swap_tint, "swap", "换线",
 		("L%d" % lv) if can_swap else "锁定", 1.0 if can_swap else 0.0,
 		skin.INK_SOFT, pressed == "weapon", can_swap)
@@ -168,7 +168,7 @@ static func status_chip(ci: CanvasItem, skin: UISkin, cx: float, y: float, text:
 		tint: Color) -> void:
 	var w := skin.font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 24.0
 	var r := Rect2(cx - w * 0.5, y - 24.0, w, 24.0)
-	skin.panel(ci, r, Color(1, 1, 1, 0.90), 9.0, tint, 2.0, false)
+	skin.panel(ci, r, Color(skin.BG_PANEL.r, skin.BG_PANEL.g, skin.BG_PANEL.b, 0.92), 9.0, tint, 2.0, false)
 	skin.text_center(ci, cx, y - 7.0, text, 12, skin.INK, 0)
 
 
@@ -195,12 +195,12 @@ static func action_button(ci: CanvasItem, skin: UISkin, c: Vector2, r: float, fi
 	var cc := c + Vector2(0, 2.0 if pressed else 0.0)
 	if ready:
 		skin.glow(ci, cc, r + 14.0, ring_col, 5, 0.24)
-	ci.draw_circle(cc, r + 5.0, skin.PAPER)
-	ci.draw_circle(cc, r + 2.0, skin.INK)
+	ci.draw_circle(cc, r + 5.0, skin.BG_PANEL)
+	ci.draw_circle(cc, r + 2.0, skin.BORDER)
 	ci.draw_circle(cc, r - 1.0, fill)
 	ci.draw_circle(cc + Vector2(-r * 0.22, -r * 0.28), r * 0.52, Color(1, 1, 1, 0.14))
 	var icon_c := cc + Vector2(0, -r * 0.18)
-	var icon_col := Color(1, 1, 1, 0.95) if fill.get_luminance() < 0.75 else skin.INK
+	var icon_col := Color(1, 1, 1, 0.95) if fill.get_luminance() < 0.75 else skin.BG_PRIMARY
 	match icon:
 		"burst":
 			skin.icon_burst(ci, icon_c, r * 0.42, icon_col, 8)

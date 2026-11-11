@@ -1,8 +1,8 @@
 class_name UIMenu
 extends RefCounted
 
-## 主菜单：奶油贴纸标题 + 大尺寸 Hero 机体 + 三档难度胶囊 + 大号出发按钮。
-## 布局全部按视口比例计算，长屏/平板会自动拉开间距。
+## 主菜单：暗色科幻标题贴纸 + 大尺寸 Hero 机体 + 三档难度胶囊 + 大号出发按钮。
+## 布局全部按视口比例计算，长屏/平板会自动拉开间距。颜色走 UISkin Token。
 
 const ZONE_NAMES := ["裂隙入口", "星云回廊", "静默空域", "熔星带", "镜面深空",
 	"花火云", "冰晶环", "赤色风暴", "翡翠墓园", "终焉之门"]
@@ -23,7 +23,7 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 
 	# Hero 机体：轻微上下浮动 + 光晕 + 环绕轨道
 	var bob := sin(t * 1.15) * 7.0
-	skin.glow(ci, hero_c + Vector2(0, bob), hero_size * 0.52, Color("#FFE8F2"), 7, 0.26)
+	skin.glow(ci, hero_c + Vector2(0, bob), hero_size * 0.52, Color("#BFE9FF"), 7, 0.26)
 	ci.draw_arc(hero_c + Vector2(0, bob), hero_size * 0.50, t * 0.35, t * 0.35 + PI * 1.35, 48,
 		Color(1, 1, 1, 0.20), 2.0, true)
 	ci.draw_arc(hero_c + Vector2(0, bob), hero_size * 0.58, -t * 0.24, -t * 0.24 + PI * 0.9, 40,
@@ -45,7 +45,7 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 	var title_c := Vector2(cx, title_y)
 	var logo_tex: Texture2D = main._keyart_tex("logo")
 	ci.draw_set_transform(title_c + Vector2(2, 6), -0.018, Vector2.ONE)
-	skin.panel(ci, Rect2(-190, -77, 380, 154), skin.PAPER, 22.0, skin.INK, 3.5, true)
+	skin.panel(ci, Rect2(-190, -77, 380, 154), skin.PAPER, 22.0, skin.BORDER, 3.5, true)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	ci.draw_set_transform(title_c, -0.018, Vector2.ONE)
 	if logo_tex != null:
@@ -60,7 +60,7 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 
 	# 最高分
 	var best_rect := Rect2(cx - 138.0, best_y - 86.0, 276.0, 54.0)
-	skin.panel(ci, best_rect, skin.CREAM, 16.0, skin.INK, 3.0, true)
+	skin.panel(ci, best_rect, skin.CREAM, 16.0, skin.BORDER, 3.0, true)
 	skin.icon_star(ci, best_rect.position + Vector2(28, 27), 11.0, skin.GOLD)
 	skin.text(ci, best_rect.position + Vector2(48, 35), "最高分", 14, skin.INK_SOFT)
 	skin.text_right(ci, best_rect.end.x - 18.0, best_rect.position.y + 37.0,
@@ -78,7 +78,7 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 		rects[keys[i]] = r
 		var on: bool = String(main.difficulty) == keys[i]
 		var fill: Color = tints[i] if on else skin.PAPER
-		skin.panel(ci, r, fill, 16.0, skin.INK, 3.0, not on)
+		skin.panel(ci, r, fill, 16.0, skin.BORDER, 3.0, not on)
 		if on:
 			ci.draw_rect(Rect2(r.position + Vector2(12, 8), Vector2(r.size.x - 24, 3)),
 				Color(1, 1, 1, 0.38))
@@ -116,7 +116,8 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 
 	# 操作提示卡
 	var hint_rect := Rect2(cx - w * 0.5, hint_y - 86.0, w, 112.0)
-	skin.panel(ci, hint_rect, Color(1, 1, 1, 0.82), 16.0, skin.INK, 2.5, false)
+	skin.panel(ci, hint_rect, Color(skin.BG_PANEL.r, skin.BG_PANEL.g, skin.BG_PANEL.b, 0.85),
+		16.0, skin.BORDER, 2.5, false)
 	skin.halftone(ci, Rect2(hint_rect.position + Vector2(10, 10), Vector2(42, 30)),
 		Color(skin.PINK.r, skin.PINK.g, skin.PINK.b, 0.16), 9.0)
 	if bool(main.is_mobile):

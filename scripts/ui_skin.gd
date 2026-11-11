@@ -1,23 +1,57 @@
 class_name UISkin
 extends RefCounted
 
-## 日系贴纸风 UI 调色板与绘制原语：奶油纸面 + 深梅描边 + 糖果色高光。
+## 暗色科幻 UI 设计系统（UI 重构 Phase 1）：深空底 + 蓝青高亮 + 金色奖励 + 红色警示。
+## Token 取自《UI 全面重构实施方案》；旧常量名保留为语义别名，调用方无需改名。
 ## 所有控件用 StyleBoxFlat 绘制，圆角/描边/投影一次缓存，避免每帧新建资源。
 
-const INK := Color("#2B2338")
-const INK_SOFT := Color("#4A435E")
-const PAPER := Color("#FFF8EC")
-const CREAM := Color("#FFF1DC")
+# ---- Design Tokens（颜色）----
+const BG_PRIMARY := Color("#081321")   # 深空主背景
+const BG_PANEL := Color("#11243A")     # 面板底
+const BG_CARD := Color("#192F48")      # 卡片/次级面板底
+const ACCENT_BLUE := Color("#26C6F6")  # 主高亮（出发/选中/武器）
+const ACCENT_CYAN := Color("#35E0B5")  # 次高亮（冲刺/护盾/进度）
+const COLOR_GOLD := Color("#FFC857")   # 奖励/连击/星爆
+const COLOR_DANGER := Color("#FF4D5A") # 警示/失谐/危险
+const TEXT_PRIMARY := Color("#F1F6FC") # 主文字
+const TEXT_SECONDARY := Color("#91A8BE") # 次文字
+const BORDER := Color("#2E4E70")       # 面板描边
+const BORDER_SOFT := Color("#22394F")  # 弱描边/分隔
+
+# ---- Design Tokens（字号阶梯，逐屏阶段逐步采用）----
+const TEXT_XS := 9
+const TEXT_SM := 11
+const TEXT_MD := 13
+const TEXT_LG := 18
+const TEXT_XL := 24
+const TEXT_H1 := 34
+const TEXT_H2 := 42
+
+# ---- Design Tokens（圆角 / 间距）----
+const R_SM := 8.0
+const R_MD := 14.0
+const R_LG := 22.0
+const SP_1 := 4.0
+const SP_2 := 8.0
+const SP_3 := 12.0
+const SP_4 := 16.0
+const SP_5 := 24.0
+
+# ---- 语义别名（旧常量名 → 暗色 Token，保持调用方兼容）----
+const INK := TEXT_PRIMARY            # 主文字（描边请显式用 BORDER）
+const INK_SOFT := TEXT_SECONDARY     # 次文字
+const PAPER := BG_PANEL              # 面板底
+const CREAM := BG_CARD               # 卡片底
 const WHITE := Color("#FFFFFF")
-const PINK := Color("#FF8FB1")
-const PINK_DEEP := Color("#F0557F")
-const CYAN := Color("#57E6D8")
-const CYAN_DEEP := Color("#14A79E")
-const GOLD := Color("#FFC554")
-const GOLD_DEEP := Color("#E69B2D")
+const PINK := ACCENT_BLUE            # 主高亮
+const PINK_DEEP := Color("#5BC8F5")  # 亮蓝（标题/Boss 血条，暗底可读）
+const CYAN := ACCENT_CYAN
+const CYAN_DEEP := Color("#2FC79E")
+const GOLD := COLOR_GOLD
+const GOLD_DEEP := Color("#F0B23E")
 const VIOLET := Color("#A78BFA")
-const VIOLET_DEEP := Color("#6C55D6")
-const RED := Color("#FF6B7A")
+const VIOLET_DEEP := Color("#8B72F0")
+const RED := COLOR_DANGER
 const BLUE := Color("#6FA8FF")
 
 var font: Font
@@ -28,7 +62,7 @@ func _init(p_font: Font = null) -> void:
 	font = p_font if p_font != null else ThemeDB.fallback_font
 
 
-func panel_style(fill: Color, radius := 18.0, border := INK, border_w := 3.0,
+func panel_style(fill: Color, radius := 18.0, border := BORDER, border_w := 3.0,
 		shadow := true) -> StyleBoxFlat:
 	var key := "%s|%s|%s|%s|%s" % [fill.to_html(), radius, border.to_html(), border_w, shadow]
 	if _styles.has(key):
@@ -40,14 +74,14 @@ func panel_style(fill: Color, radius := 18.0, border := INK, border_w := 3.0,
 	sb.set_corner_radius_all(int(round(radius)))
 	sb.anti_aliasing = true
 	if shadow:
-		sb.shadow_color = Color(INK.r, INK.g, INK.b, 0.24)
-		sb.shadow_size = 4
+		sb.shadow_color = Color(BG_PRIMARY.r, BG_PRIMARY.g, BG_PRIMARY.b, 0.45)
+		sb.shadow_size = 5
 		sb.shadow_offset = Vector2(0, 5)
 	_styles[key] = sb
 	return sb
 
 
-func panel(ci: CanvasItem, rect: Rect2, fill: Color, radius := 18.0, border := INK,
+func panel(ci: CanvasItem, rect: Rect2, fill: Color, radius := 18.0, border := BORDER,
 		border_w := 3.0, shadow := true) -> void:
 	ci.draw_style_box(panel_style(fill, radius, border, border_w, shadow), rect)
 
@@ -59,7 +93,7 @@ func text(ci: CanvasItem, pos: Vector2, s: String, size: int, color: Color,
 		for d in [Vector2(-o, 0), Vector2(o, 0), Vector2(0, -o), Vector2(0, o),
 				Vector2(-o * 0.7, -o * 0.7), Vector2(o * 0.7, -o * 0.7),
 				Vector2(-o * 0.7, o * 0.7), Vector2(o * 0.7, o * 0.7)]:
-			ci.draw_string(font, pos + d, s, align, width, size, INK)
+			ci.draw_string(font, pos + d, s, align, width, size, BG_PRIMARY)
 	ci.draw_string(font, pos, s, align, width, size, color)
 
 
@@ -80,18 +114,18 @@ func button(ci: CanvasItem, rect: Rect2, label: String, fill: Color,
 	var r := rect
 	if pressed:
 		r.position.y += 3.0
-	panel(ci, r, fill, 18.0, INK, 3.0, not pressed)
+	panel(ci, r, fill, 18.0, BORDER, 3.0, not pressed)
 	# 顶部高光条与底部内阴影
-	var hi := Color(1, 1, 1, 0.35) if not pressed else Color(1, 1, 1, 0.18)
+	var hi := Color(1, 1, 1, 0.30) if not pressed else Color(1, 1, 1, 0.14)
 	ci.draw_rect(Rect2(r.position + Vector2(14, 9), Vector2(r.size.x - 28, 3)), hi)
 	ci.draw_rect(Rect2(r.position + Vector2(14, r.size.y - 8), Vector2(r.size.x - 28, 3)),
-		Color(INK.r, INK.g, INK.b, 0.20))
+		Color(BG_PRIMARY.r, BG_PRIMARY.g, BG_PRIMARY.b, 0.30))
 	text_center(ci, r.position.x + r.size.x * 0.5, r.position.y + r.size.y * 0.5 + size * 0.36,
 		label, size, text_color, 0)
 
 
 func keycap(ci: CanvasItem, rect: Rect2, label: String, size := 12) -> void:
-	panel(ci, rect, CREAM, 7.0, INK, 2.0, false)
+	panel(ci, rect, CREAM, 7.0, BORDER, 2.0, false)
 	text_center(ci, rect.position.x + rect.size.x * 0.5, rect.position.y + rect.size.y * 0.5 + size * 0.36,
 		label, size, INK)
 
