@@ -238,13 +238,18 @@ func _draw_upgrade(vw: float, vh: float, st: float, sb: float, flash: String) ->
 				skin.icon_burst(self, ic, 14.0, ic_col, 4)
 			_:
 				skin.icon_burst(self, ic, 14.0, ic_col, 8)
+		if pressed:
+			skin.glow(self, ic, 30.0, tint, 5, 0.25)
 		var label := String(opt.get("name", "强化"))
 		var stacks := int(opt.get("stacks", 0))
-		if stacks > 0:
-			label += "  ×%d" % stacks
-		skin.text(self, r.position + Vector2(70, 42), label, 18, skin.INK)
-		skin.text(self, r.position + Vector2(70, 68), String(opt.get("desc", "")),
-			11, Color(skin.INK_SOFT.r, skin.INK_SOFT.g, skin.INK_SOFT.b, 0.9))
+		skin.text(self, r.position + Vector2(70, 40), label, skin.TEXT_LG, skin.INK)
+		skin.text(self, r.position + Vector2(70, 64), String(opt.get("desc", "")),
+			skin.TEXT_SM, Color(skin.INK_SOFT.r, skin.INK_SOFT.g, skin.INK_SOFT.b, 0.9))
+		# 当前→升级后层数（纯算术，卡池已滤满级）；免费游戏无货币消耗
+		var prog := "当前 ×%d → 升级后 ×%d" % [stacks, stacks + 1] if stacks > 0 \
+			else "本次强化 +1 · 无消耗"
+		skin.text(self, r.position + Vector2(70, 88), prog, skin.TEXT_XS,
+			Color(tint.r, tint.g, tint.b, 0.95))
 		skin.keycap(self, Rect2(r.end.x - 40.0, r.position.y + 12.0, 24.0, 22.0),
 			str(i + 1), 10)
 		skin.icon_chevron(self, r.position + Vector2(r.size.x - 30.0, 54.0),
