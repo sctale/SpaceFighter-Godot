@@ -4,7 +4,6 @@ const CFG := preload("res://scripts/game_config.gd")
 
 const PLAYER_BULLET_RADIUS := 5.0
 const ENEMY_BULLET_RADIUS := 6.0
-const GAME_OVER_TAP_DELAY := 0.6
 
 # 美术契约（与归档 Unity 版 ShipArt.cs 一致）：PNG 画布的最大半径 = 0.46 × 边长，
 # 所以"视觉外缘 = 判定半径"时，画布边长 = radius / 0.46。
@@ -401,7 +400,9 @@ func _save_best() -> void:
 	if score <= best_score:
 		return
 	best_score = score
+	# A1 修复：先 load 再合并写回，避免新 ConfigFile 直接 save 抹掉 [opt] 偏好。
 	var cfg := ConfigFile.new()
+	cfg.load("user://save.cfg")
 	cfg.set_value("score", "best", best_score)
 	cfg.save("user://save.cfg")
 

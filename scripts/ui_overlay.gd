@@ -169,8 +169,8 @@ func press(p: Vector2) -> String:
 		for k in over_buttons:
 			if Rect2(over_buttons[k]).has_point(p):
 				return _flash_action(String(k))
-		if float(main.game_over_time) > 0.6:
-			return _flash_action("retry")
+		# C2：去掉 0.6s 后全屏点按=重开的兜底，避免看结算数据时误触重开；
+		# 重开只走显式按钮（键盘 R / Enter 仍可用）。
 		return ""
 	if bool(main.paused):
 		for k in pause_buttons:
@@ -188,6 +188,10 @@ func _flash_action(action: String) -> String:
 	if action.begins_with("diff_"):
 		pressed = action.substr(5)
 	pressed_t = 0.20
+	# C3：UI 按钮点击音。nova 与三选一自带音效（play_nova / play_pick），不叠音。
+	if main != null and main.sfx != null and action != "nova" \
+			and not action.begins_with("upgrade_"):
+		main.sfx.play_click()
 	return action
 
 
@@ -367,6 +371,8 @@ func _draw_results(vw: float, vh: float, st: float, sb: float, flash: String) ->
 	}
 	skin.button(self, over_buttons["retry"], "再来一次", skin.PINK, flash == "retry", 26, skin.WHITE)
 	skin.button(self, over_buttons["menu"], "返回主菜单", skin.PAPER, flash == "menu", 20, skin.INK)
+	skin.text_center(self, vw * 0.5, card.end.y - 16.0,
+		"点按按钮继续" if bool(main.is_mobile) else "R / Enter 快速重开", 11, skin.INK_SOFT, 0)
 
 
 func _draw_banners(vw: float, vh: float, st: float) -> void:
