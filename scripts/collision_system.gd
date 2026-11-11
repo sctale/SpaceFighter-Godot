@@ -160,12 +160,14 @@ func player_hit() -> void:
 	# 护盾优先：掉了只丢一层，不清弹（Unity：shield break 不 clear）
 	if m.player_shields > 0:
 		m.player_shields -= 1
+		m.shield_flash = 0.6
 		m.player_invuln = CFG.INVULN_AFTER_SHIELD
 		m._gain_nova_raw(CFG.NOVA_ON_SHIELD_BREAK)
 		m._feel_freeze(CFG.FREEZE_HIT)
 	else:
 		# 船体受击：清弹、慢镜、武器惩罚、丢僚机、重生位移
 		m.player_lives -= 1
+		m.hurt_flash = 0.7
 		m.player_invuln = CFG.INVULN_AFTER_HULL_HIT
 		m._gain_nova_raw(CFG.NOVA_ON_HULL_HIT)
 		m._feel_slow(CFG.SLOW_HIT_SCALE, CFG.SLOW_HIT_DUR)

@@ -213,6 +213,25 @@ func glow(ci: CanvasItem, c: Vector2, r: float, color: Color, layers := 6, alpha
 		ci.draw_circle(c, r * t, Color(color.r, color.g, color.b, alpha / float(layers)))
 
 
+func edge_flash(ci: CanvasItem, vw: float, vh: float, col: Color, k: float,
+		depth := 56.0) -> void:
+	## 纯视觉事件反馈：四边渐变晕光（受击红闪 / 护盾青闪），不触碰判定。
+	## draw_colored_polygon 不支持逐顶点色，用多层二次衰减色带模拟渐变。
+	if k <= 0.0:
+		return
+	var a := clampf(k, 0.0, 1.0) * 0.5
+	var bands := 12
+	var bw := depth / float(bands)
+	for i in range(bands):
+		var f := 1.0 - float(i) / float(bands)
+		var c := Color(col.r, col.g, col.b, a * f * f)
+		var o := float(i) * bw
+		ci.draw_rect(Rect2(0, o, vw, bw + 1.0), c)
+		ci.draw_rect(Rect2(0, vh - o - bw - 1.0, vw, bw + 1.0), c)
+		ci.draw_rect(Rect2(o, 0, bw + 1.0, vh), c)
+		ci.draw_rect(Rect2(vw - o - bw - 1.0, 0, bw + 1.0, vh), c)
+
+
 func halftone(ci: CanvasItem, rect: Rect2, color: Color, spacing := 14.0) -> void:
 	var y := rect.position.y
 	while y < rect.end.y:

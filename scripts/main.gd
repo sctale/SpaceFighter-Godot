@@ -77,6 +77,8 @@ var player_lives := 3
 var player_invuln := 0.0
 var player_bank := 0.0
 var player_last_dir := 0.0
+var hurt_flash := 0.0     # 纯视觉：船体受击屏幕边缘红闪，UIOverlay 消费衰减
+var shield_flash := 0.0   # 纯视觉：护盾破碎/获得屏幕边缘青闪，UIOverlay 消费衰减
 
 
 # 武器与玩家生存/技能（迁移C）
@@ -296,6 +298,10 @@ func _ready() -> void:
 				l.unlocked = true
 			weapons.select_weapon("prism")
 		elif _shot_mode == "pause" or _shot_mode == "gameover":
+			in_menu = false
+			_reset_game()
+		elif _shot_mode == "hurt":
+			# 纯视觉验收：受击/护盾边缘闪（DevShots）
 			in_menu = false
 			_reset_game()
 		_shot_taken = false
@@ -582,6 +588,10 @@ func _process(delta: float) -> void:
 	if _shot_mode != "" and not _shot_taken:
 		_shot_t += delta
 		var wait := 3.6 if (_shot_mode == "play" or _shot_mode.begins_with("boss")) else 1.6
+		if _shot_mode == "bossdeploy":
+			wait = 0.15
+		elif _shot_mode == "hurt":
+			wait = 1.2
 		if _shot_mode == "demo":
 			wait = 4.8
 		elif _shot_mode == "action":
@@ -601,6 +611,9 @@ func _process(delta: float) -> void:
 			rift = 32
 			total_kills = 120
 			best_score = 60000
+		if _shot_mode == "hurt" and _shot_t > wait - 0.3:
+			hurt_flash = 0.7
+			shield_flash = 0.6
 		if _shot_t > wait:
 			_shot_taken = true
 			var dir := ProjectSettings.globalize_path("res://build/shots")
@@ -1355,6 +1368,7 @@ func _apply_crate(kind: String) -> void:
 		"shield":
 			if player_shields < CFG.MAX_SHIELDS:
 				player_shields += 1
+				shield_flash = 0.6
 				label = "护盾 %d/%d" % [player_shields, CFG.MAX_SHIELDS]
 			else:
 				score += CFG.CRATE_FULL_SHIELD_SCORE

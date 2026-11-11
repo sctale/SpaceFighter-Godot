@@ -26,6 +26,10 @@ var _last_zone := 1
 var _fade := 1.0
 var _last_state := ""
 var _modal_t := 0.0
+var _boss_bar_k := 0.0
+var _boss_was := false
+var _lv_pulse := 0.0
+var _last_lv := 0
 
 
 func _ready() -> void:
@@ -63,6 +67,20 @@ func _process(delta: float) -> void:
 			_warning_t = maxf(_warning_t, 0.55)
 	_banner_t = maxf(0.0, _banner_t - delta)
 	_warning_t = maxf(0.0, _warning_t - delta)
+	# Phase 3 纯视觉时钟：边缘闪衰减 / Boss 血条展开 / 武器升级脉冲
+	main.hurt_flash = maxf(0.0, float(main.hurt_flash) - delta)
+	main.shield_flash = maxf(0.0, float(main.shield_flash) - delta)
+	var has_boss := main.boss != null
+	if has_boss and not _boss_was:
+		_boss_bar_k = 0.0
+	_boss_was = has_boss
+	if has_boss:
+		_boss_bar_k = minf(1.0, _boss_bar_k + delta * 2.2)
+	var lv_now := int(main.weapons.active().level)
+	if _last_lv > 0 and lv_now > _last_lv:
+		_lv_pulse = 0.7
+	_last_lv = lv_now
+	_lv_pulse = maxf(0.0, _lv_pulse - delta)
 	queue_redraw()
 
 
@@ -103,7 +121,12 @@ func _draw() -> void:
 		menu_buttons = UIMenu.draw(self, skin, main, vw, vh, st, sb, _t)
 		_draw_fade(vw, vh)
 		return
-	game_buttons = UIHud.draw(self, skin, main, vw, vh, st, sb, sl, sr, _t, flash)
+	game_buttons = UIHud.draw(self, skin, main, vw, vh, st, sb, sl, sr, _t, flash,
+		_boss_bar_k, _lv_pulse)
+	if float(main.hurt_flash) > 0.0:
+		skin.edge_flash(self, vw, vh, skin.RED, float(main.hurt_flash) / 0.7)
+	if float(main.shield_flash) > 0.0:
+		skin.edge_flash(self, vw, vh, skin.ACCENT_CYAN, float(main.shield_flash) / 0.6)
 	if bool(main.upgrade_pending):
 		_draw_upgrade(vw, vh, st, sb, flash)
 	elif bool(main.paused):
