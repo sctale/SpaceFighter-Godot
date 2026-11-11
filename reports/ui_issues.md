@@ -80,3 +80,16 @@
 3. A2（暂停音乐）——随设置屏一起修+复验。
 4. B3/B4（Token 收编+字体管线）——Phase 1 基础设施。
 5. C2/C3/C4/C5——按用户取舍与 Phase 7 实测结果决定。
+------------------------------------------------------------------------
+
+## Phase 6 治理结论（2026-11-11 补记）
+
+- **B2 已解耦**：display_score / display_boss_hp 缓动与 hurt_flash / shield_flash 衰减
+  从 UIOverlay._process 搬回 main._process（所有状态走真实时间，早于 in_menu/paused 等提前 return）。
+  UIOverlay 现在对 main 字段**零写入**，只读 + 自有局部视觉时钟（_t/_modal_t/_fade/_banner_t/_warning_t/_boss_bar_k/_lv_pulse）。
+  未新造平行 UIManager，符合文档数据架构要求。
+- **飘字对象池评估：不新增**。fx_layer 飘字/粒子本就是字典数组 + 硬上限
+  （MAX_PARTS=420 / MAX_TEXTS=40，溢出 pop_front），无逐条 Node 创建、无无限增长；
+  对象池只增复杂度无实测收益。低端机帧耗留 Phase 7 实测。
+- **B3 收尾**：WARNING 横幅硬编码色收编为 WARNING_BG / WARNING_TINT / WARNING_TEXT Token；
+  三选一默认 tint 改读 skin.ACCENT_BLUE，移除 "#26C6F6" 散点。

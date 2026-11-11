@@ -51,13 +51,7 @@ func _process(delta: float) -> void:
 	_fade = maxf(0.0, _fade - delta * 3.4)
 	if state == "paused" or state == "over" or state == "upgrade" or state == "settings":
 		_modal_t += delta
-	main.display_score = lerpf(float(main.display_score), float(main.score),
-		1.0 - exp(-7.0 * delta))
-	if main.boss != null:
-		main.display_boss_hp = lerpf(float(main.display_boss_hp), float(main.boss.hp_frac()),
-			1.0 - exp(-6.0 * delta))
-	else:
-		main.display_boss_hp = 1.0
+	# B2 解耦后：display_score/display_boss_hp/hurt_flash/shield_flash 由 main._process 驱动，这里只读。
 	if not bool(main.in_menu):
 		if int(main.zone) != _last_zone:
 			_last_zone = int(main.zone)
@@ -68,9 +62,7 @@ func _process(delta: float) -> void:
 			_warning_t = maxf(_warning_t, 0.55)
 	_banner_t = maxf(0.0, _banner_t - delta)
 	_warning_t = maxf(0.0, _warning_t - delta)
-	# Phase 3 纯视觉时钟：边缘闪衰减 / Boss 血条展开 / 武器升级脉冲
-	main.hurt_flash = maxf(0.0, float(main.hurt_flash) - delta)
-	main.shield_flash = maxf(0.0, float(main.shield_flash) - delta)
+	# Phase 3 纯视觉时钟：Boss 血条展开 / 武器升级脉冲（边缘闪衰减已归 main）
 	var has_boss := main.boss != null
 	if has_boss and not _boss_was:
 		_boss_bar_k = 0.0
@@ -220,7 +212,9 @@ func _draw_upgrade(vw: float, vh: float, st: float, sb: float, flash: String) ->
 		if pressed:
 			r.position.y += 2.0
 		upgrade_buttons[str(i)] = r
-		var tint := Color.html(String(opt.get("tint", "#26C6F6")))
+		var tint: Color = skin.ACCENT_BLUE
+		if opt.has("tint"):
+			tint = Color.html(String(opt["tint"]))
 		skin.panel(self, r, skin.CREAM, 18.0, tint, 2.5, not pressed)
 		self.draw_circle(r.position + Vector2(36, 54), 24.0,
 			Color(tint.r, tint.g, tint.b, 0.18))
@@ -380,16 +374,16 @@ func _draw_banners(vw: float, vh: float, st: float) -> void:
 		var a := clampf(_banner_t / 0.6, 0.0, 1.0) * clampf((2.4 - _banner_t) / 0.25, 0.0, 1.0)
 		var y := st + vh * 0.30
 		draw_rect(Rect2(0, y - 54.0, vw, 108.0), Color(skin.BG_PRIMARY.r, skin.BG_PRIMARY.g, skin.BG_PRIMARY.b, 0.55 * a))
-		draw_rect(Rect2(0, y - 54.0, vw, 3), Color(1, 1, 1, 0.35 * a))
-		draw_rect(Rect2(0, y + 51.0, vw, 3), Color(1, 1, 1, 0.35 * a))
-		skin.text_center(self, vw * 0.5, y - 8.0, "星区 %02d" % _banner_zone, 12, Color(1, 1, 1, a), 0)
+		draw_rect(Rect2(0, y - 54.0, vw, 3), Color(skin.WHITE.r, skin.WHITE.g, skin.WHITE.b, 0.35 * a))
+		draw_rect(Rect2(0, y + 51.0, vw, 3), Color(skin.WHITE.r, skin.WHITE.g, skin.WHITE.b, 0.35 * a))
+		skin.text_center(self, vw * 0.5, y - 8.0, "星区 %02d" % _banner_zone, 12, Color(skin.WHITE.r, skin.WHITE.g, skin.WHITE.b, a), 0)
 		skin.text_center(self, vw * 0.5, y + 32.0, UIMenu.ZONE_NAMES[clampi(_banner_zone - 1, 0, 9)],
-			34, Color(1, 1, 1, a), 3)
+			34, Color(skin.WHITE.r, skin.WHITE.g, skin.WHITE.b, a), 3)
 	if _warning_t > 0.0:
 		var a := clampf(_warning_t / 0.5, 0.0, 1.0)
 		var y := st + vh * 0.40
-		draw_rect(Rect2(0, y - 40.0, vw, 80.0), Color(0.16, 0.06, 0.12, 0.72 * a))
-		skin.icon_chevron(self, Vector2(vw * 0.5 - 150.0, y + 8.0), 18.0, Color(1, 0.7, 0.7, a), -1.0)
-		skin.icon_chevron(self, Vector2(vw * 0.5 + 150.0, y + 8.0), 18.0, Color(1, 0.7, 0.7, a), 1.0)
-		skin.text_center(self, vw * 0.5, y + 18.0, "W A R N I N G", 30, Color(1, 1, 1, a), 3)
-		skin.text_center(self, vw * 0.5, y + 36.0, "大型旗舰接近", 11, Color(1, 0.85, 0.85, a), 0)
+		draw_rect(Rect2(0, y - 40.0, vw, 80.0), Color(skin.WARNING_BG.r, skin.WARNING_BG.g, skin.WARNING_BG.b, 0.72 * a))
+		skin.icon_chevron(self, Vector2(vw * 0.5 - 150.0, y + 8.0), 18.0, Color(skin.WARNING_TINT.r, skin.WARNING_TINT.g, skin.WARNING_TINT.b, a), -1.0)
+		skin.icon_chevron(self, Vector2(vw * 0.5 + 150.0, y + 8.0), 18.0, Color(skin.WARNING_TINT.r, skin.WARNING_TINT.g, skin.WARNING_TINT.b, a), 1.0)
+		skin.text_center(self, vw * 0.5, y + 18.0, "W A R N I N G", 30, Color(skin.WHITE.r, skin.WHITE.g, skin.WHITE.b, a), 3)
+		skin.text_center(self, vw * 0.5, y + 36.0, "大型旗舰接近", 11, Color(skin.WARNING_TEXT.r, skin.WARNING_TEXT.g, skin.WARNING_TEXT.b, a), 0)

@@ -76,8 +76,8 @@ var player_lives := 3
 var player_invuln := 0.0
 var player_bank := 0.0
 var player_last_dir := 0.0
-var hurt_flash := 0.0     # 纯视觉：船体受击屏幕边缘红闪，UIOverlay 消费衰减
-var shield_flash := 0.0   # 纯视觉：护盾破碎/获得屏幕边缘青闪，UIOverlay 消费衰减
+var hurt_flash := 0.0     # 纯视觉：船体受击屏幕边缘红闪，main 衰减、UIOverlay 只读
+var shield_flash := 0.0   # 纯视觉：护盾破碎/获得屏幕边缘青闪，main 衰减、UIOverlay 只读
 
 
 # 武器与玩家生存/技能（迁移C）
@@ -634,6 +634,15 @@ func _process(delta: float) -> void:
 		confirm_t = maxf(0.0, confirm_t - delta)
 		if confirm_t <= 0.0:
 			confirm_action = ""
+	# B2 解耦：表现层缓动/衰减归 main 自有字段驱动（所有状态都走真实时间），
+	# UIOverlay 只读不写，搬动 UI 不会漏掉分数/Boss 条/边缘闪的驱动。
+	display_score = lerpf(display_score, float(score), 1.0 - exp(-7.0 * delta))
+	if boss != null:
+		display_boss_hp = lerpf(display_boss_hp, boss.hp_frac(), 1.0 - exp(-6.0 * delta))
+	else:
+		display_boss_hp = 1.0
+	hurt_flash = maxf(0.0, hurt_flash - delta)
+	shield_flash = maxf(0.0, shield_flash - delta)
 	if in_menu:
 		return
 	if paused:
