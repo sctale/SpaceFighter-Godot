@@ -22,7 +22,6 @@ var _t := 0.0
 var _banner_t := 0.0
 var _banner_zone := 1
 var _warning_t := 0.0
-var _warning_shown := false
 var _last_zone := 1
 var _fade := 1.0
 var _last_state := ""
@@ -59,12 +58,9 @@ func _process(delta: float) -> void:
 			_last_zone = int(main.zone)
 			_banner_zone = _last_zone
 			_banner_t = 2.4
-		if main.boss != null and bool(main.boss_pending):
-			if not _warning_shown:
-				_warning_t = 1.6
-				_warning_shown = true
-		else:
-			_warning_shown = false
+		# WARNING 覆盖 3s 清场预警 + Boss 入场（Unity Announce WARNING 2.7s）
+		if float(main.boss_warn) > 0.0 or (main.boss != null and bool(main.boss_pending)):
+			_warning_t = maxf(_warning_t, 0.55)
 	_banner_t = maxf(0.0, _banner_t - delta)
 	_warning_t = maxf(0.0, _warning_t - delta)
 	queue_redraw()

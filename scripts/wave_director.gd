@@ -11,6 +11,12 @@ var wave_timer := 2.0
 var spawn_count := 0
 var zone_kills := 0
 var zone_time := 0.0
+var zone_waves := 0            # 本星区已出波数（剧本补给钩子按区重置）
+var clearing := false          # Unity RunState.Clearing：配额打满后的清场段
+var clear_timer := 0.0
+var mid_supply_done := false   # 55% 进度中期补给（Unity _midSupply）
+var elite_supply_done := false # 每区首个精英波的成长箱（Unity 剧本精英步）
+var drone_supply_done := false # 每区临近配额时的僚机箱（Unity 剧本末步）
 
 
 func _init(main_ref) -> void:
@@ -22,12 +28,24 @@ func reset() -> void:
 	spawn_count = 0
 	zone_kills = 0
 	zone_time = 0.0
+	zone_waves = 0
+	clearing = false
+	clear_timer = 0.0
+	mid_supply_done = false
+	elite_supply_done = false
+	drone_supply_done = false
 
 
 ## 换区时清空击杀与计时，但保留当前波次节奏。
 func begin_zone() -> void:
 	zone_kills = 0
 	zone_time = 0.0
+	zone_waves = 0
+	clearing = false
+	clear_timer = 0.0
+	mid_supply_done = false
+	elite_supply_done = false
+	drone_supply_done = false
 
 
 func quota() -> int:
@@ -45,12 +63,32 @@ func density_tier() -> int:
 
 
 func tick(delta: float) -> void:
-	# 打满本区配额且停留够最短时长才进 Boss；Boss 战期间停刷小怪
-	if m.boss != null:
+	# Boss 战 / 通关幕间停刷（Unity：仅 Waves 状态推进剧本与补给）
+	if m.boss != null or m.boss_cleared:
+		return
+	# WARNING 倒计时：3 秒清场公告后才真正生成 Boss（Unity Clearing._bossWarn）
+	if m.boss_warn > 0.0:
+		m.boss_warn -= delta
+		if m.boss_warn <= 0.0:
+			m._start_boss()
+		return
+	# 清场段：全灭且 ≥1s（或最多等 9.5s）→ 亮 WARNING、清残敌与敌弹
+	if clearing:
+		clear_timer += delta
+		if (m.enemies.is_empty() and clear_timer > 1.0) or clear_timer > 9.5:
+			m.boss_warn = CFG.BOSS_WARN_SECONDS
+			m.enemies.clear()
+			m.enemy_bullets.clear()
+			m.sfx.play_hit()  # Unity PlayWarn
 		return
 	zone_time += delta
+	# 中期补给：进度到 55% 投一箱（走完整掉落池，Unity _midSupply）
+	if not mid_supply_done and progress() >= CFG.SUPPLY_MID_PROGRESS:
+		mid_supply_done = true
+		m._collect_supply()
 	if zone_kills >= quota() and zone_time >= CFG.zone_min_time(int(m.zone)):
-		m._start_boss()
+		clearing = true
+		clear_timer = 0.0
 		return
 	wave_timer -= delta
 	if wave_timer > 0.0 or m.enemies.size() >= CFG.MAX_ENEMIES_ALIVE - 8:
@@ -58,7 +96,14 @@ func tick(delta: float) -> void:
 	var diff: Dictionary = CFG.DIFFICULTY[String(m.difficulty)]
 	wave_timer = maxf(2.4, 4.4 - int(m.zone) * 0.18) * float(diff["enemyRate"])
 	spawn_count += 1
+	zone_waves += 1
 	_spawn_wave(spawn_count)
+	# 剧本补给钩子（Unity BuildScript）：第 2 波武器箱；临近配额补僚机箱
+	if zone_waves == 2:
+		m._spawn_supply_now("weapon")
+	if not drone_supply_done and zone_kills >= quota() - 4:
+		drone_supply_done = true
+		m._spawn_supply_now("drone")
 
 
 func _roster_pool() -> Array:
@@ -85,6 +130,13 @@ func _spawn_wave(n: int) -> void:
 	# 精英小队：前 5 区每 4 波，后段每 3 波
 	var elite_every := 3 if int(m.zone) >= 6 else 4
 	var elite_wave := n % elite_every == 0
+	# 精英波成长箱（Unity 剧本精英步）：每区一次，2~3 区护盾、4 区起奇数棱镜/偶数蜂群
+	if elite_wave and not elite_supply_done and int(m.zone) >= 2:
+		elite_supply_done = true
+		var supply_kind := "shield"
+		if int(m.zone) >= 4:
+			supply_kind = "prism" if int(m.zone) % 2 == 1 else "swarm"
+		m._spawn_supply_now(supply_kind)
 	var count := 3 + mini(4, int(m.zone) / 2)
 	var affix := "none"
 	if not elite_wave and randf() < CFG.AFFIX_BASE_CHANCE + minf(CFG.AFFIX_MAX_EXTRA, int(m.zone) * 0.02):

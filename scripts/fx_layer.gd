@@ -81,6 +81,9 @@ func _draw() -> void:
 				draw_arc(pos, float(p["radius"]), 0, TAU, 48, col, float(p.get("w", 3.0)), true)
 			"flash":
 				draw_circle(pos, float(p["radius"]) * (0.7 + (1.0 - k) * 0.6), col)
+			"impact":
+				# Unity Impact：直径 0.45→1.9 倍放大 + 线性淡出
+				draw_circle(pos, float(p["radius"]) * (0.45 + 1.45 * (1.0 - k)), col)
 			"dot":
 				draw_circle(pos, float(p["size"]) * (0.4 + k * 0.9), col)
 	for tx in texts:
@@ -124,6 +127,12 @@ func hit(pos: Vector2, color: Color) -> void:
 			"vel": Vector2(cos(a), sin(a)) * _rng.randf_range(120.0, 300.0),
 			"life": _rng.randf_range(0.12, 0.24), "max_life": 0.24,
 			"color": color, "w": 1.8})
+
+
+## Unity Impact.Spawn：爆点光斑，size_px 是最大直径，life 内放大并淡出。
+func impact(pos: Vector2, color: Color, size_px: float, life := 0.3) -> void:
+	_push({"kind": "impact", "pos": pos, "vel": Vector2.ZERO, "radius": size_px * 0.5,
+		"life": life, "max_life": life, "color": color})
 
 
 func pickup(pos: Vector2, color: Color, label: String) -> void:

@@ -308,8 +308,19 @@ const ZONE_MIN_TIME := 30.0
 const ZONE_MIN_TIME_STEP := 1.2
 const MINE_DRAG := 3.8
 const MINE_BURST_SPEED := 128.0
+const MINE_ARMED_FLASH := 0.9       # 引信剩 0.9s 时水雷开始闪烁
+const MINE_SHARD_LIFE := 7.0
+const MINE_SHARD_RADIUS := 5.0
+const MINE_BURST_COUNT := 10        # 未指定 split 时的默认破片数
 const WAVE_PHASE_RATE := 7.2
 const PLASMA_BURST_SPEED := 105.0
+const PLASMA_SHARD_LIFE := 7.0
+const PLASMA_SHARD_RADIUS := 6.0
+const PLASMA_BURST_COUNT := 6
+# Boss 光束（Unity BossLaser）：长度 = 屏高×2，命中宽 = width/2 + 玩家判定半径
+const BEAM_LENGTH_MUL := 2.0
+const BEAM_TAIL := 0.12
+const BEAM_COLOR := "#ff5c8a"
 
 # ---- 敌机缩放与精英（entities.js:1210-1233,1481-1493）----
 const ENEMY_HP_PER_SECTOR := 0.16
@@ -421,6 +432,22 @@ const BOSS_HIT_RX := 1.02
 const BOSS_HIT_RY := 0.82
 const BOSS_WARN_SECONDS := 3.0
 const SECTOR_CLEAR_SECONDS := 4.4
+# 入场 / 悬停 / 炮口（Unity BossController：2.2 world/s、锚点 max(0.27H,252)、炮口下方 size×0.35）
+const BOSS_ENTRY_SPEED := 118.8
+const BOSS_ENTRY_START_Y := -81.0
+const BOSS_ANCHOR_MIN_TOP := 252.0
+const BOSS_MUZZLE_FRAC := 0.35
+const BOSS_BULLET_LIFE := 10.0
+const BOSS_MINE_LIFE := 8.0
+const BOSS_HOVER_SWAY := [0.19, 0.225, 0.27]
+const BOSS_HOVER_RATE_BASE := 0.55
+const BOSS_HOVER_RATE_STEP := 0.08
+const BOSS_IDLE_SPREAD := 0.22
+const BOSS_SEEKER_SPREAD := 0.42
+const BOSS_SEEKER_SPEED_MUL := 0.58
+const BOSS_SEEKER_HOMING := 2.6
+const BOSS_SEEKER_TURN := 1.9
+const BOSS_SEEKER_RADIUS := 7.0
 
 # ---- 击破结算（game.js:1395-1400）----
 const CLEAR_TIME_BONUS_BASE := 90.0
@@ -450,14 +477,24 @@ const AEGIS_PD_INTERVAL := 0.5
 const AEGIS_PD_RADIUS := 38.0
 const AEGIS_PD_CLEAR_COUNT := 4
 
-# ---- 补给箱（game.js:1061-1086；director.js:230-303）----
-const SUPPLY_INTERVAL := 13.0
-const SUPPLY_INTERVAL_MIN := 11.0
+# ---- 补给箱（director.js:230-303；Unity SupplyCrate/Director）----
+# 周期补给：首箱 20s，之后固定 19s；箱子从屏顶上方匀速直落 75.6px/s，无磁吸无寿命。
+const SUPPLY_INTERVAL := 20.0
+const SUPPLY_INTERVAL_MIN := 19.0
 const SUPPLY_MID_PROGRESS := 0.55
 const PITY_THRESHOLD := 3
 const SWAP_IDLE_FOR_SWAP_CRATE := 10.0
 const SWAP_CRATE_CHANCE := 0.62
 const REFLECT_DURATION := 8.0
+const CRATE_FALL_SPEED := 75.6      # 1.4 world/s × 54
+const CRATE_PICKUP_R := 30.0
+const CRATE_SPIN_DEG := 42.0        # 宝石以外的箱子自旋 42°/s
+const CRATE_GEM_SCORE := 25         # 宝石 = 25 × 连锁倍率
+const CRATE_FULL_WEAPON_SCORE := 800
+const CRATE_FULL_SHIELD_SCORE := 500
+const CRATE_FULL_DRONE_SCORE := 600
+const CRATE_FULL_LINE_SCORE := 1200
+const CRATE_FULL_LIFE_SCORE := 1000
 
 
 # ============================================================================
@@ -518,3 +555,67 @@ static func boss_resume_timer(timer: float) -> float:
 	if is_nan(timer) or is_inf(timer):
 		return BOSS_POST_BREAK_CD
 	return minf(timer, BOSS_POST_BREAK_CD)
+
+
+## Boss 悬停锚点：max(0.27H, 252)（Unity BossController._anchor）。
+static func boss_anchor_y(h: float) -> float:
+	return maxf(h * 0.27, BOSS_ANCHOR_MIN_TOP)
+
+
+## 裂隙光幕列数 = max(9, round(W/40))（540 → 14 列）。
+static func wall_gap_cols(w: float) -> int:
+	return maxi(9, int(roundf(w / 40.0)))
+
+
+## 裂隙光幕缺口列数：三阶段 3/2，其余 4/3（按密度档）。
+static func wall_gap_width(phase: int, tier: int) -> int:
+	if phase >= 2:
+		return 3 if tier == 0 else 2
+	return 4 if tier == 0 else 3
+
+
+## 贯穿冲撞俯冲目标 y = min(0.74H, anchor + 0.42H)（画布 y 向下）。
+static func charge_target_y(anchor_y: float, h: float) -> float:
+	return minf(h * 0.74, anchor_y + h * 0.42)
+
+
+## 水雷破片初速随星区 +2px/s（Unity Projectile：128 + zone×2）。
+static func mine_burst_speed(zone: int) -> float:
+	return MINE_BURST_SPEED + zone * 2.0
+
+
+## 僚机开火间隔：先按机型（aegis 点防），再按当前武器线换弹种。
+## Unity DroneShip：swarm 线或 swarm 机 → 微型追踪；prism 线 → beam；否则 pulse。
+static func drone_fire_cd(kind: String, active_id: String) -> float:
+	if kind == "aegis":
+		return AEGIS_PD_INTERVAL
+	if active_id == "swarm" or kind == "swarm":
+		return 0.86 if kind == "gunner" else 1.02
+	if active_id == "prism":
+		return 0.82 if kind == "lance" else 1.05
+	return 0.34 if kind == "gunner" else 0.5
+
+
+## 点到射线的最短距离（Unity BossLaser.PointRayDistance / game.js:968）。
+static func point_ray_distance(pt: Vector2, origin: Vector2, angle: float, length: float) -> float:
+	var dir := Vector2(cos(angle), sin(angle))
+	var rel := pt - origin
+	var t := rel.dot(dir)
+	if t <= 0.0:
+		return rel.length()
+	if t > length:
+		return pt.distance_to(origin + dir * length)
+	return pt.distance_to(origin + dir * t)
+
+
+## 加权抽取：roll ∈ [0,1)，返回命中下标（Unity Director.Weighted）。
+static func weighted_pick(weights: Array, roll: float) -> int:
+	var total := 0.0
+	for w in weights:
+		total += float(w)
+	var r := clampf(roll, 0.0, 0.999999) * total
+	for i in range(weights.size()):
+		r -= float(weights[i])
+		if r <= 0.0:
+			return i
+	return weights.size() - 1

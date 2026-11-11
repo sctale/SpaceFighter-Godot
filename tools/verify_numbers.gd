@@ -147,6 +147,99 @@ func _initialize() -> void:
 	_eq(failures, "beh.boss.roster", Boss.NAMES.size(), 6)
 	_eq(failures, "beh.boss.finalHp", Boss.BASE_HP[5], 500.0)
 
+	# ---- 补给节奏（Unity Director：首箱 20s 之后 19s、中途补给 55%、保底 3）----
+	_eq(failures, "beh.supply.first", CFG.SUPPLY_INTERVAL, 20.0)
+	_eq(failures, "beh.supply.then", CFG.SUPPLY_INTERVAL_MIN, 19.0)
+	_eq(failures, "beh.supply.midProgress", CFG.SUPPLY_MID_PROGRESS, 0.55)
+	_eq(failures, "beh.supply.pity", CFG.PITY_THRESHOLD, 3)
+	_eq(failures, "beh.supply.swapIdle", CFG.SWAP_IDLE_FOR_SWAP_CRATE, 10.0)
+	_eq(failures, "beh.supply.swapChance", CFG.SWAP_CRATE_CHANCE, 0.62)
+
+	# ---- 补给箱物理与经济（Unity SupplyCrate）----
+	_eq(failures, "beh.crate.fallSpeed", CFG.CRATE_FALL_SPEED, 75.6)
+	_eq(failures, "beh.crate.pickupR", CFG.CRATE_PICKUP_R, 30.0)
+	_eq(failures, "beh.crate.spinDeg", CFG.CRATE_SPIN_DEG, 42.0)
+	_eq(failures, "beh.crate.gemScore", CFG.CRATE_GEM_SCORE, 25)
+	_eq(failures, "beh.crate.gemNova", CFG.NOVA_ON_GEM, 0.5)
+	_eq(failures, "beh.crate.fullWeapon", CFG.CRATE_FULL_WEAPON_SCORE, 800)
+	_eq(failures, "beh.crate.fullShield", CFG.CRATE_FULL_SHIELD_SCORE, 500)
+	_eq(failures, "beh.crate.fullDrone", CFG.CRATE_FULL_DRONE_SCORE, 600)
+	_eq(failures, "beh.crate.fullLine", CFG.CRATE_FULL_LINE_SCORE, 1200)
+	_eq(failures, "beh.crate.fullLife", CFG.CRATE_FULL_LIFE_SCORE, 1000)
+	_eq(failures, "beh.crate.kinds", Crate.KINDS.size(), 9)
+
+	# ---- Boss 入场 / 预告 / 几何（Unity BossController + Director）----
+	_eq(failures, "beh.bossFlow.warn", CFG.BOSS_WARN_SECONDS, 3.0)
+	_eq(failures, "beh.bossFlow.clearHold", CFG.SECTOR_CLEAR_SECONDS, 4.4)
+	_eq(failures, "beh.bossFlow.entrySpeed", CFG.BOSS_ENTRY_SPEED, 118.8)
+	_eq(failures, "beh.bossFlow.entryY", CFG.BOSS_ENTRY_START_Y, -81.0)
+	_eq(failures, "beh.bossFlow.anchor960", CFG.boss_anchor_y(960.0), 259.2)
+	_eq(failures, "beh.bossFlow.anchorSmall", CFG.boss_anchor_y(800.0), 252.0)
+	_eq(failures, "beh.bossFlow.muzzleFrac", CFG.BOSS_MUZZLE_FRAC, 0.35)
+	_eq(failures, "beh.bossFlow.bulletLife", CFG.BOSS_BULLET_LIFE, 10.0)
+	_eq(failures, "beh.bossFlow.mineLife", CFG.BOSS_MINE_LIFE, 8.0)
+	_eq(failures, "beh.bossFlow.seekerHoming", CFG.BOSS_SEEKER_HOMING, 2.6)
+	_eq(failures, "beh.bossFlow.seekerTurn", CFG.BOSS_SEEKER_TURN, 1.9)
+	_eq(failures, "beh.bossFlow.seekerSpeedMul", CFG.BOSS_SEEKER_SPEED_MUL, 0.58)
+	_eq(failures, "beh.bossFlow.wallCols", CFG.wall_gap_cols(540.0), 14)
+	_eq(failures, "beh.bossFlow.wallGap.p2t0", CFG.wall_gap_width(2, 0), 3)
+	_eq(failures, "beh.bossFlow.wallGap.p0t1", CFG.wall_gap_width(0, 1), 3)
+	_eq(failures, "beh.bossFlow.chargeTarget", CFG.charge_target_y(259.2, 960.0), 662.4)
+
+	# ---- 弹体行为常量（Unity Projectile：水雷/波动/等离子/挥发型）----
+	_eq(failures, "beh.bullet.mineDrag", CFG.MINE_DRAG, 3.8)
+	_eq(failures, "beh.bullet.mineArmedFlash", CFG.MINE_ARMED_FLASH, 0.9)
+	_eq(failures, "beh.bullet.mineCount", CFG.MINE_BURST_COUNT, 10)
+	_eq(failures, "beh.bullet.mineSpeed.z1", CFG.mine_burst_speed(1), 130.0)
+	_eq(failures, "beh.bullet.mineSpeed.z10", CFG.mine_burst_speed(10), 148.0)
+	_eq(failures, "beh.bullet.mineShardLife", CFG.MINE_SHARD_LIFE, 7.0)
+	_eq(failures, "beh.bullet.wavePhaseRate", CFG.WAVE_PHASE_RATE, 7.2)
+	_eq(failures, "beh.bullet.plasmaCount", CFG.PLASMA_BURST_COUNT, 6)
+	_eq(failures, "beh.bullet.plasmaSpeed", CFG.PLASMA_BURST_SPEED, 105.0)
+	_eq(failures, "beh.bullet.plasmaShardLife", CFG.PLASMA_SHARD_LIFE, 7.0)
+	_eq(failures, "beh.bullet.volatileFuse", CFG.VOLATILE_FUSE, 0.5)
+	_eq(failures, "beh.bullet.volatileSplit", CFG.VOLATILE_SPLIT, 6)
+	_eq(failures, "beh.beam.lengthMul", CFG.BEAM_LENGTH_MUL, 2.0)
+	_eq(failures, "beh.beam.tail", CFG.BEAM_TAIL, 0.12)
+	_eq(failures, "beh.bullet.cap", CFG.MAX_ENEMY_BULLETS, 420)
+
+	# ---- 僚机挂点 / 射速（Unity DroneShip）----
+	_eq(failures, "beh.drone.slots3", CFG.DRONE_SLOTS_3[2], Vector2(0, 48))
+	_eq(failures, "beh.drone.cd.aegis", CFG.drone_fire_cd("aegis", "pulse"), 0.5)
+	_eq(failures, "beh.drone.cd.swarmGunner", CFG.drone_fire_cd("gunner", "swarm"), 0.86)
+	_eq(failures, "beh.drone.cd.prismLance", CFG.drone_fire_cd("lance", "prism"), 0.82)
+	_eq(failures, "beh.drone.cd.pulseGunner", CFG.drone_fire_cd("gunner", "pulse"), 0.34)
+
+	# ---- 几何 / 加权抽取纯函数 ----
+	_eq(failures, "beh.ray.perp", CFG.point_ray_distance(Vector2(100, 30), Vector2.ZERO, 0.0, 200.0), 30.0)
+	_eq(failures, "beh.ray.behind", CFG.point_ray_distance(Vector2(-10, 0), Vector2.ZERO, 0.0, 200.0), 10.0)
+	_eq(failures, "beh.ray.pastEnd", CFG.point_ray_distance(Vector2(250, 0), Vector2.ZERO, 0.0, 200.0), 50.0)
+	_eq(failures, "beh.weighted.first", CFG.weighted_pick([38, 17, 13, 6, 6, 5, 4, 11], 0.0), 0)
+	_eq(failures, "beh.weighted.last", CFG.weighted_pick([38, 17, 13, 6, 6, 5, 4, 11], 0.999999), 7)
+	_eq(failures, "beh.weighted.mid", CFG.weighted_pick([1, 1], 0.75), 1)
+
+	# ---- 武器线升级 / 换线行为（Unity GrantLevel / GrantLine / SwapToBest）----
+	var ws := WeaponSystem.new()
+	_eq(failures, "beh.ws.startLevel", ws.active().level, CFG.START_PULSE_LEVEL)
+	_eq(failures, "beh.ws.grantLevel", ws.grant_level(), true)
+	ws.grant_level()
+	ws.grant_level()
+	_eq(failures, "beh.ws.maxLevel", ws.active().level, 5)
+	_eq(failures, "beh.ws.grantUnlocksPrism", ws.grant_level(), true)
+	_eq(failures, "beh.ws.prismActive", ws.active_id, "prism")
+	_eq(failures, "beh.ws.prismCharge", ws.line("prism").charge, 100.0)
+	_eq(failures, "beh.ws.grantLineSwarm", ws.grant_line("swarm"), true)
+	_eq(failures, "beh.ws.swarmActive", ws.active_id, "swarm")
+	ws.line("pulse").charge = 90.0
+	ws.line("prism").charge = 40.0
+	_eq(failures, "beh.ws.swapPicksBest", ws.swap_to_best(30.0), true)
+	_eq(failures, "beh.ws.swapToPulse", ws.active_id, "pulse")
+	_eq(failures, "beh.ws.swapTopUpCap", ws.line("pulse").charge, 100.0)
+	var ws2 := WeaponSystem.new()
+	ws2.active().charge = 10.0
+	_eq(failures, "beh.ws.swapSoloFalse", ws2.swap_to_best(30.0), false)
+	_eq(failures, "beh.ws.swapSoloRecharge", ws2.active().charge, 55.0)
+
 	if failures.is_empty():
 		print("VERIFY_OK checks=%d" % checks)
 		quit(0)

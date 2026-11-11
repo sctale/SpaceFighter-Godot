@@ -117,13 +117,16 @@ func choose(index: int) -> void:
 	m.upgrade_pending = false
 	m.upgrade_options.clear()
 	m.zone = mini(10, m.zone + 1)
+	# AdvanceSector 对齐：换区清残敌/敌弹/光束，补给计时器按 Unity 原样延续
+	m.enemies.clear()
+	m.enemy_bullets.clear()
+	m.beams.clear()
 	m.waves.begin_zone()
 	if m.music != null:
 		m.music.play_zone(m.zone)
 	m.boss_cleared = false
 	m.boss_pending = false
 	m.player_invuln = maxf(m.player_invuln, CFG.INVULN_ON_ZONE_CHANGE)
-	m.crate_timer = minf(m.crate_timer, 4.0)
 	m.sfx.play_pick()
 	if m.fx != null:
 		m.fx.float_text(m.player_pos + Vector2(0, -46),

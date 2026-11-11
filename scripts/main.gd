@@ -43,6 +43,10 @@ class Bullet:
 	var phased := false      # 相位冲刺已标记（不再重复计分）
 	var boss_bonus := 1.0
 	var hit_enemies: Array = []  # 贯穿弹已 hit 过的敌机，避免一帧多次扣血
+	var seed := randf() * 10.0   # 波动相位/破片角偏移（Unity _seed）
+	var armed := false           # 水雷引信 <0.9s 的一次性提示闪光
+	var homing_target = null     # 追踪缓存目标（Enemy 或 Boss，Unity HomingTarget）
+	var hit_boss := false        # Unity HitBoss：同一颗弹对 Boss 只结算一次
 
 	func _init(p_pos: Vector2, p_vel: Vector2, p_radius: float, p_damage: float,
 			p_life: float, p_friendly: bool, p_tint: Color, p_kind := "orb") -> void:
@@ -56,6 +60,16 @@ class Bullet:
 		friendly = p_friendly
 		tint = p_tint
 		kind = p_kind
+
+
+## Boss 光束（Unity BossLaser）：原点跟随本体，warn 期冻结角度，active 期才扫。
+class Beam:
+	var angle := 0.0
+	var warn := 0.9
+	var active := 0.9
+	var width := 14.0
+	var sweep := 0.0
+	var t := 0.0
 
 
 var player_pos := Vector2(CFG.WIDTH * 0.5, CFG.HEIGHT - 130.0)
@@ -90,9 +104,13 @@ var ui_font: Font
 var boss: Boss = null
 var boss_pending := false
 var boss_cleared := false
+var boss_warn := 0.0       # Boss 预警倒计时（Unity Clearing→3s WARNING 清场）
+var beams: Array = []
 var crates: Array = []
-var crate_timer := 8.0
-var crate_drought := 0
+var crate_timer := CFG.SUPPLY_INTERVAL
+var pity_weapon := 0       # 连续未出成长箱计数（Unity pityWeapon）
+var pity_drone := 0        # 连续未出僚机箱计数（Unity pityDrone）
+var clear_hold := 0.0      # Boss 击破后的结算缓冲（Unity Intermission clearHold 4.4s）
 var drones: Array = []
 
 var score := 0
@@ -435,26 +453,97 @@ func _run_selftest() -> void:
 		% [str(music != null and music.is_playing()),
 		-1 if music == null else music.current_zone()])
 
-	# 5) 星区最短时长：击杀配额满但时间不足时，不能提前进 Boss
+	# 5) 星区节奏：配额满但时间不足不清场；时间到进清场；清场后 WARNING 3s 才出 Boss
 	_reset_game()
 	waves.zone_kills = waves.quota()
 	waves.zone_time = 0.0
 	waves.tick(0.05)
-	if boss != null:
+	if waves.clearing or boss != null:
 		failures += 1
-		print("SELFTEST_FAIL pace early boss at 0s")
+		print("SELFTEST_FAIL pace early clear at 0s")
 	waves.zone_time = CFG.ZONE_MIN_TIME - 0.2
 	waves.tick(0.05)
-	if boss != null:
+	if waves.clearing or boss != null:
 		failures += 1
-		print("SELFTEST_FAIL pace early boss at %.1fs" % waves.zone_time)
+		print("SELFTEST_FAIL pace early clear at %.1fs" % waves.zone_time)
 	waves.tick(0.3)
+	if not waves.clearing or boss != null:
+		failures += 1
+		print("SELFTEST_FAIL pace no clearing after %.1fs" % CFG.ZONE_MIN_TIME)
+	for i in range(30):
+		waves.tick(0.1)
+	if boss_warn <= 0.0:
+		failures += 1
+		print("SELFTEST_FAIL pace no warning after clear")
+	for i in range(35):
+		waves.tick(0.1)
 	if boss == null:
 		failures += 1
-		print("SELFTEST_FAIL pace no boss after %.1fs" % CFG.ZONE_MIN_TIME)
+		print("SELFTEST_FAIL pace no boss after warning")
+
+	# 6) Boss 光束：active 期玩家压在射线上扣船体（Unity BossLaser.CheckHit）
+	_reset_game()
+	player_shields = 0
+	player_invuln = 0.0
+	_start_boss()
+	boss.entered = true
+	boss.pos = player_pos + Vector2(0, -200.0)
+	var bm := Beam.new()
+	bm.angle = PI * 0.5
+	bm.warn = 0.5
+	bm.active = 1.0
+	bm.width = 14.0
+	bm.t = 0.6
+	beams.append(bm)
+	_update_beams(0.016)
+	if player_lives != 2:
+		failures += 1
+		print("SELFTEST_FAIL beam lives=%d" % player_lives)
+
+	# 7) 水雷引信到期：炸默认 10 颗破片、本体移除、破片速度随星区
+	_reset_game()
+	var mine := Bullet.new(Vector2(270, 300), Vector2(60, 0), 9.0, 1.0, 8.0,
+		false, Color.WHITE, "mine")
+	mine.fuse = 0.01
+	mine.split_on_expire = 0
+	enemy_bullets.append(mine)
+	_advance_bullets(enemy_bullets, 0.05)
+	if enemy_bullets.size() != CFG.MINE_BURST_COUNT:
+		failures += 1
+		print("SELFTEST_FAIL mine burst n=%d" % enemy_bullets.size())
+	elif not is_equal_approx(enemy_bullets[0].vel.length(), CFG.mine_burst_speed(1)):
+		failures += 1
+		print("SELFTEST_FAIL mine shard speed=%.1f" % enemy_bullets[0].vel.length())
+
+	# 8) 补给箱武器语义（Unity GrantLevel/GrantLine/SwapToBest）
+	var ws := WeaponSystem.new()
+	if not ws.grant_level() or ws.active().level != CFG.START_PULSE_LEVEL + 1:
+		failures += 1
+		print("SELFTEST_FAIL grant_level basic")
+	ws.grant_level()
+	ws.grant_level()
+	if ws.active().level != 5:
+		failures += 1
+		print("SELFTEST_FAIL grant_level max")
+	if not ws.grant_level() or ws.active_id != "prism" or ws.line("prism").level != 1:
+		failures += 1
+		print("SELFTEST_FAIL grant_level unlock")
+	if not ws.grant_line("swarm") or ws.active_id != "swarm" or ws.line("swarm").charge != 100.0:
+		failures += 1
+		print("SELFTEST_FAIL grant_line unlock")
+	ws.line("pulse").charge = 90.0
+	ws.line("prism").charge = 40.0
+	if not ws.swap_to_best(30.0) or ws.active_id != "pulse" or ws.line("pulse").charge != 100.0:
+		failures += 1
+		print("SELFTEST_FAIL swap_to_best")
+	var ws2 := WeaponSystem.new()
+	ws2.active().charge = 10.0
+	if ws2.swap_to_best(30.0) or ws2.active().charge != 55.0:
+		failures += 1
+		print("SELFTEST_FAIL swap_to_best solo")
 
 	if failures == 0:
-		print("SELFTEST_OK n=5")
+		print("SELFTEST_OK n=8")
 	else:
 		print("SELFTEST_FAIL n=%d" % failures)
 	get_tree().quit(0 if failures == 0 else 1)
@@ -471,14 +560,21 @@ func _player_spawn_bullet(pos: Vector2, vel: Vector2, props: Dictionary) -> void
 	player_bullets.append(b)
 
 
-func _nearest_enemy(pos: Vector2) -> Enemy:
-	var best: Enemy = null
+## 追踪目标（Unity Director.NearestEnemy）：跳过未入屏敌机，Boss 未崩解时也算目标。
+func _nearest_target(pos: Vector2):
+	var best = null
 	var bd := INF
 	for e: Enemy in enemies:
+		if e.entry_delay > 0.0:
+			continue
 		var d := pos.distance_squared_to(e.pos)
 		if d < bd:
 			bd = d
 			best = e
+	if boss != null and not boss.dying:
+		var d := pos.distance_squared_to(boss.pos)
+		if d < bd:
+			best = boss
 	return best
 
 
@@ -557,7 +653,13 @@ func _process(delta: float) -> void:
 	_update_drones(dt)
 	_update_crates(dt)
 	_update_bullets(dt)
+	_update_beams(dt)
 	_update_motes(dt)
+	# Boss 击破后的 4.4s 结算缓冲：打捞箱落地、残弹飞完，再开突破三选一
+	if clear_hold > 0.0:
+		clear_hold -= dt
+		if clear_hold <= 0.0 and not game_over and not upgrade_pending:
+			_open_upgrade_draft()
 	waves.tick(dt)
 	collisions.resolve()
 	queue_redraw()
@@ -804,20 +906,24 @@ func _player_pos() -> Vector2:
 
 
 func _enemy_spawn_bullet(pos: Vector2, vel: Vector2, color: Color, radius: float,
-		kind: String, life: float) -> void:
+		kind: String, life: float, extra: Dictionary = {}) -> void:
 	if enemy_bullets.size() >= CFG.MAX_ENEMY_BULLETS:
 		return
 	var b := Bullet.new(pos, vel, radius, 1.0, life, false, color, kind)
+	# 默认值对齐 Unity Projectile：引信/分裂/波动/追踪全部由调用方显式给定
 	if kind == "mine":
-		b.fuse = randf_range(1.8, 2.4)
-		b.split_on_expire = 10
-	elif kind == "wave":
-		b.wave = 2.1
-	elif kind == "seeker":
+		b.fuse = float(extra.get("fuse", randf_range(1.8, 2.4)))
+		b.split_on_expire = int(extra.get("split", CFG.MINE_BURST_COUNT))
+	elif extra.has("fuse"):
+		# 挥发词缀的等离子雷（Unity VolatileBlast）：life 1.2、引信 0.5、炸 6 发
+		b.fuse = float(extra["fuse"])
+		b.split_on_expire = int(extra.get("split", CFG.VOLATILE_SPLIT))
+	b.wave = float(extra.get("wave", 0.0))
+	if bool(extra.get("homing", false)) or kind == "homing" or kind == "seeker":
 		b.homing = true
-		b.homing_time = 2.6
-		b.homing_delay = 0.15
-		b.turn_rate = 1.9
+		b.homing_time = float(extra.get("homing_time", 2.6))
+		b.homing_delay = float(extra.get("homing_delay", 0.0))
+		b.turn_rate = float(extra.get("turn_rate", 1.9))
 	enemy_bullets.append(b)
 
 
@@ -844,9 +950,43 @@ func _start_boss() -> void:
 	boss.spawn_bullet = _enemy_spawn_bullet
 	boss.spawn_child = waves.spawn_child
 	boss.player_pos_fn = _player_pos
+	boss.spawn_beam = _boss_spawn_beam
+	boss.fx_impact = _boss_fx_impact
+	boss.sfx_fn = _boss_sfx
+	boss.shake_fn = _boss_shake
 	boss.on_phase_change = _on_boss_phase
 	boss.on_desperate = _on_boss_desperate
 	boss_pending = true
+
+
+func _boss_spawn_beam(angle: float, warn: float, active: float, width_px: float, sweep: float) -> void:
+	var bm := Beam.new()
+	bm.angle = angle
+	bm.warn = warn
+	bm.active = active
+	bm.width = width_px
+	bm.sweep = sweep
+	beams.append(bm)
+
+
+func _boss_fx_impact(pos: Vector2, col: Color, size_px: float, life: float) -> void:
+	if fx != null:
+		fx.impact(pos, col, size_px, life)
+
+
+## Unity 音效映射：PlayWarn/PlayHit→hit，PlaySwitch→pick，PlayExplode→boom。
+func _boss_sfx(sname: String) -> void:
+	match sname:
+		"boom":
+			sfx.play_boom()
+		"pick":
+			sfx.play_pick()
+		_:
+			sfx.play_hit()
+
+
+func _boss_shake(amount_px: float, dur: float) -> void:
+	_add_shake(amount_px, dur)
 
 
 func _on_boss_phase(_phase: int) -> void:
@@ -868,6 +1008,8 @@ func _update_boss(delta: float) -> void:
 	boss.tick(delta, player_pos)
 	if boss.entered:
 		boss_pending = false
+	if boss.dying and not beams.is_empty():
+		beams.clear()  # Unity BossLaser.ClearAll：崩解即收光束
 	if not boss.dying and player_invuln <= 0.0:
 		var dx := (player_pos.x - boss.pos.x) / boss.contact_rx()
 		var dy := (player_pos.y - boss.pos.y) / boss.contact_ry()
@@ -889,7 +1031,7 @@ func _update_boss(delta: float) -> void:
 		if fx != null:
 			fx.explode(boss.pos, Color.html("#FFB3D9"), boss.size * 1.6, true)
 			fx.nova(boss.pos)
-		_add_shake(15.0, 0.55)
+		_add_shake(17.28, 0.55)
 		_feel_freeze(CFG.FREEZE_BOSS_DIE)
 		_feel_slow(CFG.SLOW_BOSS_DIE_SCALE, CFG.SLOW_BOSS_DIE_DUR)
 		boss = null
@@ -904,7 +1046,33 @@ func _update_boss(delta: float) -> void:
 			_save_best()
 			sfx.play_nova()
 		else:
-			_open_upgrade_draft()
+			# Unity OnBossDefeated：铺通关必掉箱 + 4.4s 幕间，幕间结束才开三选一
+			_deploy_sector_salvage()
+			clear_hold = CFG.SECTOR_CLEAR_SECONDS
+
+
+## Boss 光束推进（Unity BossLaser.Update）：warn 期冻结角度，active 期才扫射/判定。
+func _update_beams(delta: float) -> void:
+	if boss == null:
+		if not beams.is_empty():
+			beams.clear()
+		return
+	var length := view_size.y * CFG.BEAM_LENGTH_MUL
+	for i in range(beams.size() - 1, -1, -1):
+		var bm: Beam = beams[i]
+		bm.t += delta
+		if bm.t > bm.warn and bm.t < bm.warn + bm.active:
+			bm.angle += bm.sweep * delta
+		if bm.t > bm.warn + bm.active + CFG.BEAM_TAIL:
+			beams.remove_at(i)
+			continue
+		if bm.t < bm.warn or bm.t > bm.warn + bm.active:
+			continue
+		if player_invuln > 0.0 or dash_t > 0.0:
+			continue  # 无敌帧与冲刺可穿光束
+		var d := CFG.point_ray_distance(player_pos, boss.pos, bm.angle, length)
+		if d < bm.width * 0.5 + CFG.PLAYER_HIT_R:
+			collisions.player_hit()
 
 
 # ---------------------------------------------------------------- 僚机
@@ -915,11 +1083,22 @@ func _add_drone() -> void:
 	var in_use: Array = []
 	for d in drones:
 		in_use.append(d["kind"])
-	drones.append({"kind": CFG.pick_drone_kind(in_use, randi()), "timer": randf_range(0.2, 0.6)})
+	var kind := CFG.pick_drone_kind(in_use, randi())
+	var slots := _drone_slots_for(drones.size() + 1)
+	var slot: Vector2 = slots[drones.size()] if drones.size() < slots.size() else Vector2.ZERO
+	drones.append({
+		"kind": kind,
+		"timer": randf_range(0.15, 0.5),
+		"pos": player_pos + slot,
+	})
 
 
 func _drone_slots() -> Array:
-	match drones.size():
+	return _drone_slots_for(drones.size())
+
+
+func _drone_slots_for(count: int) -> Array:
+	match count:
 		1:
 			return CFG.DRONE_SLOTS_1
 		2:
@@ -929,138 +1108,297 @@ func _drone_slots() -> Array:
 	return []
 
 
+## 僚机（Unity DroneShip）：挂点阻尼跟随（不绕圈），弹种跟着主机当前武器线走，
+## 横向偏移换算 lean 侧向分量让侧翼弹道自然张开。
 func _update_drones(delta: float) -> void:
 	var slots := _drone_slots()
+	var line_id := String(weapons.active_id)
+	var tint := Color.html(String(CFG.WEAPON_LINES[line_id]["tint"]))
+	var dmul := weapons.damage_mul()
 	for i in range(drones.size()):
 		var d: Dictionary = drones[i]
+		var slot: Vector2 = slots[i] if i < slots.size() else Vector2.ZERO
+		var want := player_pos + slot
+		want.x = clampf(want.x, 18.0, view_size.x - 18.0)
+		var cur := Vector2(d["pos"])
+		cur = cur.lerp(want, 1.0 - exp(-13.0 * delta))
+		d["pos"] = cur
 		d["timer"] = float(d["timer"]) - delta * float(upgrades.get("drone_rate", 1.0))
 		if float(d["timer"]) > 0.0:
 			continue
-		var slot: Vector2 = slots[i] if i < slots.size() else Vector2.ZERO
-		var dpos := player_pos + slot
-		match String(d["kind"]):
-			"gunner":
-				d["timer"] = 0.24
-				player_bullets.append(Bullet.new(dpos + Vector2(0, -14), Vector2(0, -900),
-					4.0, 1.0, 2.0, true, Color.html("#69f5dc"), "bolt"))
-			"lance":
-				d["timer"] = 0.7
-				var lb := Bullet.new(dpos + Vector2(0, -14), Vector2(0, -820),
-					5.0, 2.0, 2.4, true, Color.html("#ff6f91"), "lance")
-				lb.pierce_left = 1
-				player_bullets.append(lb)
-			"swarm":
-				d["timer"] = 0.5
-				var sb := Bullet.new(dpos + Vector2(0, -10), Vector2(randf_range(-40, 40), -700),
-					4.0, 2.0, 2.2, true, Color.html("#ffd27a"), "micro")
+		var kind := String(d["kind"])
+		var lean := clampf((cur.x - player_pos.x) / 55.0, -0.18, 0.18)
+		if kind == "aegis":
+			d["timer"] = CFG.AEGIS_PD_INTERVAL
+			var cleared := 0
+			for j in range(enemy_bullets.size() - 1, -1, -1):
+				if cleared >= CFG.AEGIS_PD_CLEAR_COUNT:
+					break
+				var eb: Bullet = enemy_bullets[j]
+				if eb.pos.distance_to(cur) <= CFG.AEGIS_PD_RADIUS:
+					enemy_bullets.remove_at(j)
+					_gain_nova(CFG.NOVA_ON_POINT_DEFENSE)
+					cleared += 1
+			if cleared > 0 and fx != null:
+				fx.impact(cur, Color(tint.r, tint.g, tint.b, 0.5), CFG.AEGIS_PD_RADIUS * 2.0, 0.22)
+			continue
+		if line_id == "swarm" or kind == "swarm":
+			d["timer"] = 0.86 if kind == "gunner" else 1.02
+			var n := 2 if kind == "lance" else 1
+			for k in range(n):
+				var vx := lean * 520.0 + (k - (n - 1) * 0.5) * 140.0
+				var sb := Bullet.new(cur + Vector2(0, -5), Vector2(vx, -700.0),
+					4.0, maxf(1.0, roundf(2.0 * dmul)), 2.1, true, tint, "micro")
 				sb.homing = true
-				sb.homing_time = 1.2
-				sb.homing_delay = 0.1
+				sb.homing_time = 1.6
+				sb.turn_rate = 4.4
+				sb.homing_delay = 0.12
+				sb.homing_target = _nearest_target(cur)
 				player_bullets.append(sb)
-			"aegis":
-				d["timer"] = CFG.AEGIS_PD_INTERVAL
-				var cleared := 0
-				for j in range(enemy_bullets.size() - 1, -1, -1):
-					if cleared >= CFG.AEGIS_PD_CLEAR_COUNT:
-						break
-					var eb: Bullet = enemy_bullets[j]
-					if eb.pos.distance_to(dpos) < CFG.AEGIS_PD_RADIUS + eb.radius:
-						enemy_bullets.remove_at(j)
-						_gain_nova(CFG.NOVA_ON_POINT_DEFENSE)
-						cleared += 1
+			continue
+		if line_id == "prism":
+			d["timer"] = 0.82 if kind == "lance" else 1.05
+			var pb := Bullet.new(cur + Vector2(0, -9), Vector2(lean * 150.0, -600.0),
+				6.0, maxf(1.0, roundf((4.0 if kind == "lance" else 3.0) * dmul)),
+				2.4, true, tint, "beam")
+			pb.pierce_left = 2 if kind == "lance" else 1
+			player_bullets.append(pb)
+			continue
+		d["timer"] = 0.34 if kind == "gunner" else 0.5
+		player_bullets.append(Bullet.new(cur + Vector2(0, -7), Vector2(lean * 260.0, -1180.0),
+			4.0, maxf(1.0, roundf(dmul)), 1.9, true, tint, "drone"))
+		if kind == "lance":
+			player_bullets.append(Bullet.new(cur + Vector2(-5, -4), Vector2(lean * 320.0 - 60.0, -1140.0),
+				4.0, maxf(1.0, roundf(dmul)), 1.9, true, tint, "drone"))
 
 
 # ---------------------------------------------------------------- 补给箱
 
 func _update_crates(delta: float) -> void:
-	crate_timer -= delta * float(upgrades.get("crate_rate", 1.0))
-	if crate_timer <= 0.0 and boss == null:
-		crate_timer = randf_range(CFG.SUPPLY_INTERVAL_MIN, CFG.SUPPLY_INTERVAL)
-		_spawn_crate()
+	# 周期补给只在波次阶段走（Unity：仅 Waves 状态）；首箱 20s，之后固定 19s
+	if boss == null and not boss_cleared and not waves.clearing and boss_warn <= 0.0:
+		crate_timer -= delta * float(upgrades.get("crate_rate", 1.0))
+		if crate_timer <= 0.0:
+			crate_timer = CFG.SUPPLY_INTERVAL_MIN
+			_collect_supply()
 	for i in range(crates.size() - 1, -1, -1):
 		var c: Crate = crates[i]
 		c.tick(delta, player_pos)
-		if not c.dead and c.pos.distance_to(player_pos) < 32.0:
+		if not c.dead and c.pos.distance_to(player_pos) < CFG.CRATE_PICKUP_R:
 			_apply_crate(c.kind)
 			c.dead = true
 		if c.dead:
 			crates.remove_at(i)
 
 
-func _spawn_crate() -> void:
-	# 加权：强化类更常见（旧版 10 种等概率 → 武器/换线几乎不出现）
-	var weights := {
-		"weapon": 26, "prism": 12, "drone": 16, "life": 9, "shield": 11,
-		"charge": 8, "nova": 6, "gem": 6, "reflect": 3, "swap": 3,
-	}
+## 周期补给（Unity Director.CollectSupply）：成长优先 + 换线箱 + 双保底计数。
+func _collect_supply() -> void:
+	var missing := not weapons.line("prism").unlocked or not weapons.line("swarm").unlocked
 	var kind := "weapon"
-	# 棱镜未解锁时第一箱必给棱镜，保证本局能换线
-	if weapons.unlocked_count() < 2 and not weapons.line("prism").unlocked:
-		kind = "prism"
-	else:
-		var total := 0
-		for k in weights:
-			total += int(weights[k])
-		var roll := randi() % total
-		for k in weights:
-			roll -= int(weights[k])
-			if roll < 0:
-				kind = String(k)
-				break
-	# 保底：连续 PITY_THRESHOLD 箱没成长类，强制武器强化
-	crate_drought += 1
-	if crate_drought >= CFG.PITY_THRESHOLD:
+	if weapons.active().level < 3:
 		kind = "weapon"
-	if kind == "weapon" or kind == "drone" or kind == "life" or kind == "shield":
-		crate_drought = 0
-	# 长停未换线时概率掉换线箱
-	if weapons.unlocked_count() >= 2 and swap_idle >= CFG.SWAP_IDLE_FOR_SWAP_CRATE 			and randf() < CFG.SWAP_CRATE_CHANCE:
+	elif missing and (pity_weapon >= CFG.PITY_THRESHOLD or randf() < 0.35):
+		if not weapons.line("prism").unlocked:
+			kind = "prism"
+		elif not weapons.line("swarm").unlocked:
+			kind = "swarm"
+		else:
+			kind = "prism" if randf() < 0.5 else "swarm"
+	elif weapons.unlocked_count() >= 2 and swap_idle > CFG.SWAP_IDLE_FOR_SWAP_CRATE \
+			and randf() < CFG.SWAP_CRATE_CHANCE:
 		kind = "swap"
-	# 出生在中上屏（旧版从 -30 以 46px/s 下落、10s 寿命，根本到不了玩家）
+	elif drones.size() < CFG.MAX_DRONES and pity_drone >= CFG.PITY_THRESHOLD:
+		kind = "drone"
+	elif player_shields < CFG.MAX_SHIELDS and randf() < 0.4:
+		kind = "shield"
+	elif drones.size() < CFG.MAX_DRONES and randf() < 0.35:
+		kind = "drone"
+	elif reflect_t <= 0.0 and randf() < 0.25:
+		kind = "reflect"
+	elif player_lives <= 2 and randf() < 0.3:
+		kind = "life"
+	else:
+		var idx := CFG.weighted_pick([2, 2, 1, 1, 1, 1, 1], randf())
+		kind = String(["weapon", "weapon", "shield", "swap", "prism", "swarm", "gems"][idx])
+	# 保底计数（Unity：抽到即清零，没抽到且仍缺才累加）
+	if kind == "prism" or kind == "swarm":
+		pity_weapon = 0
+	elif missing:
+		pity_weapon += 1
+	if kind == "drone":
+		pity_drone = 0
+	else:
+		pity_drone += 1
+	if not missing:
+		pity_weapon = 0
+	if kind == "gems":
+		for i in range(4):
+			_spawn_crate_at(Vector2(view_size.x * 0.5 + randf_range(-48.6, 48.6),
+				-21.6 - i * 10.8), "gem")
+	else:
+		_spawn_crate_at(Vector2(view_size.x * randf_range(0.38, 0.62), -32.4), kind)
+
+
+## 精英掉落类型（Unity Director.PickUpgradeType）：保底→武器→护盾→僚机→缺线→杂项。
+func _pick_upgrade_type() -> String:
+	var missing := not weapons.line("prism").unlocked or not weapons.line("swarm").unlocked
+	if missing and pity_weapon >= CFG.PITY_THRESHOLD:
+		return "prism" if not weapons.line("prism").unlocked else "swarm"
+	if drones.size() < CFG.MAX_DRONES and pity_drone >= CFG.PITY_THRESHOLD:
+		return "drone"
+	if weapons.active().level < 5 and randf() < 0.4:
+		return "weapon"
+	if player_shields < CFG.MAX_SHIELDS and randf() < 0.45:
+		return "shield"
+	if drones.size() < CFG.MAX_DRONES and randf() < 0.55:
+		return "drone"
+	if not weapons.line("prism").unlocked and randf() < 0.4:
+		return "prism"
+	if not weapons.line("swarm").unlocked and randf() < 0.4:
+		return "swarm"
+	if randf() < 0.45:
+		return "prism" if randf() < 0.5 else "reflect"
+	var pool := ["weapon", "prism", "shield", "life"]
+	return String(pool[randi() % pool.size()])
+
+
+## 击杀掉落（Unity Director.RollDrop）：精英必掉成长箱+3 宝石；陨石 80% 撒 2 宝石；
+## 其余按 dropChance 进两张权重表（未满级 / 已满级）。
+func _roll_drop(e: Enemy, at: Vector2) -> void:
+	if e.elite:
+		_spawn_crate_at(at, _pick_upgrade_type())
+		for i in range(3):
+			_spawn_crate_at(at + Vector2(randf_range(-20.0, 20.0), randf_range(-10.0, 10.0)), "gem")
+		return
+	if e.kind == "rock":
+		if randf() < 0.8:
+			for i in range(2):
+				_spawn_crate_at(at + Vector2(randf_range(-10.0, 10.0), randf_range(-8.0, 8.0)), "gem")
+		return
+	if randf() > float(e.def.get("drop", 0.0)):
+		return
+	var kind := "gem"
+	if weapons.active().level < 5:
+		var idx := CFG.weighted_pick([38, 17, 13, 6, 6, 5, 4, 11], randf())
+		kind = String(["weapon", "shield", "drone", "prism", "swarm", "reflect", "life", "gem"][idx])
+	else:
+		var idx := CFG.weighted_pick([22, 20, 9, 9, 7, 4, 20, 9], randf())
+		kind = String(["shield", "drone", "prism", "swarm", "reflect", "life", "weapon", "gem"][idx])
+	_spawn_crate_at(at, kind)
+	if kind == "gem":
+		_spawn_crate_at(at + Vector2(12.0, 0.0), "gem")
+
+
+func _spawn_crate_at(pos: Vector2, kind: String) -> void:
 	var c := Crate.new()
-	c.setup(Vector2(randf_range(60.0, view_size.x - 60.0),
-		view_size.y * randf_range(0.28, 0.42)), kind)
+	c.setup(pos, kind)
 	crates.append(c)
+
+
+## 剧本补给（Unity SpawnSupplyNow）：投在玩家左右 ±140、上方 330，夹在 16%~52% 屏高。
+func _spawn_supply_now(kind: String) -> void:
+	var px := clampf(player_pos.x + randf_range(-140.0, 140.0), 54.0, view_size.x - 54.0)
+	var py := clampf(player_pos.y - 330.0, view_size.y * 0.16, view_size.y * 0.52)
+	_spawn_crate_at(Vector2(px, py), kind)
+
+
+## 拾取后的保底复位（Unity Director.OnCrateCollected）。
+func _on_crate_collected(kind: String) -> void:
+	if kind == "prism" or kind == "swarm" or kind == "weapon":
+		pity_weapon = 0
+	if kind == "drone":
+		pity_drone = 0
+
+
+## 通关必掉（Unity DeploySectorSalvage）：升级+缺线+护盾/反射+僚机/命+换线+5 宝石，
+## 摆在玩家上方 240px 的拱形里，幕间 4.4s 留给玩家收箱。
+func _deploy_sector_salvage() -> void:
+	var loot: Array = ["weapon"]
+	loot.append("prism" if not weapons.line("prism").unlocked
+		else ("swarm" if not weapons.line("swarm").unlocked else "weapon"))
+	loot.append("reflect" if player_shields >= 2 else "shield")
+	loot.append("drone" if drones.size() < CFG.MAX_DRONES else "life")
+	if weapons.unlocked_count() >= 2:
+		loot.append("swap")
+	if player_lives < 3:
+		loot.append("life")
+	var px := player_pos.x
+	var py := clampf(player_pos.y - 240.0, view_size.y * 0.28, view_size.y * 0.72)
+	var n := loot.size()
+	var gap := minf(56.0, (view_size.x - 96.0) / maxf(1.0, float(n - 1)))
+	var mid := (n - 1) * 0.5
+	for i in range(n):
+		var x := clampf(px + (i - mid) * gap, 46.0, view_size.x - 46.0)
+		_spawn_crate_at(Vector2(x, py - absf(i - mid) * 14.0), String(loot[i]))
+	for i in range(5):
+		var gx := clampf(px + randf_range(-90.0, 90.0), 30.0, view_size.x - 30.0)
+		_spawn_crate_at(Vector2(gx, py + randf_range(-20.0, 40.0)), "gem")
 
 
 func _apply_crate(kind: String) -> void:
 	sfx.play_pick()
-	if fx != null:
-		var labels := {
-			"weapon": "武器强化", "drone": "僚机 +1", "life": "船体修复",
-			"shield": "护盾 +1", "charge": "能量满充", "nova": "星爆就绪",
-			"gem": "+500", "swap": "切换武器", "reflect": "反射护盾", "prism": "棱镜解锁",
-		}
-		fx.pickup(player_pos, Color.html("#FFC554"), String(labels.get(kind, "补给")))
+	_on_crate_collected(kind)
+	var label := "补给"
+	var col := Color.html("#FFC554")
 	match kind:
-		"weapon":
-			weapons.grant_level()
-		"drone":
-			_add_drone()
-		"life":
-			player_lives = mini(int(upgrades.get("max_hull", CFG.START_LIVES)), player_lives + 1)
-		"shield":
-			player_shields = mini(CFG.MAX_SHIELDS, player_shields + 1)
-		"charge":
-			for l in weapons.lines:
-				l.charge = 100.0
-				l.detuned = false
-		"nova":
-			nova = 100.0
 		"gem":
-			score += 500 * multiplier
-		"swap":
-			# 换线箱：直接切到下一条已解锁武器线；只有一条线时先解锁再切
-			if not weapons.cycle_weapon():
-				for l in weapons.lines:
-					if not l.unlocked:
-						l.unlocked = true
-						break
-				weapons.cycle_weapon()
+			score += int(roundf(25.0 * multiplier))
+			_gain_nova(CFG.NOVA_ON_GEM)
+			if fx != null:
+				fx.pickup(player_pos, Color.html("#FFE9B0"), "+%d" % int(roundf(25.0 * multiplier)))
+			return
+		"weapon":
+			if not weapons.grant_level():
+				score += CFG.CRATE_FULL_WEAPON_SCORE
+			label = "武器强化 LV.%d" % weapons.active().level
+			col = Color.html("#FFD27A")
+		"shield":
+			if player_shields < CFG.MAX_SHIELDS:
+				player_shields += 1
+				label = "护盾 %d/%d" % [player_shields, CFG.MAX_SHIELDS]
+			else:
+				score += CFG.CRATE_FULL_SHIELD_SCORE
+				label = "+%d" % CFG.CRATE_FULL_SHIELD_SCORE
+			col = Color.html("#9B8CFF")
+		"drone":
+			if drones.size() < CFG.MAX_DRONES:
+				_add_drone()
+				label = "僚机归队"
+			else:
+				score += CFG.CRATE_FULL_DRONE_SCORE
+				label = "+%d" % CFG.CRATE_FULL_DRONE_SCORE
+			col = Color.html("#8FA4C9")
+		"prism":
+			if not weapons.grant_line("prism"):
+				score += CFG.CRATE_FULL_LINE_SCORE
+			label = "棱镜线解锁/升级"
+			col = Color.html("#FF6F91")
+		"swarm":
+			if not weapons.grant_line("swarm"):
+				score += CFG.CRATE_FULL_LINE_SCORE
+			label = "蜂群线解锁/升级"
+			col = Color.html("#FFC24B")
 		"reflect":
 			reflect_t = CFG.REFLECT_DURATION
-		"prism":
-			weapons.unlock_line("prism")
+			label = "反射力场 8s"
+			col = Color.html("#FFD27A")
+		"life":
+			if player_lives < int(upgrades.get("max_hull", CFG.START_LIVES)):
+				player_lives += 1
+				label = "舰体 +1"
+			else:
+				score += CFG.CRATE_FULL_LIFE_SCORE
+				label = "+%d" % CFG.CRATE_FULL_LIFE_SCORE
+			col = Color.html("#FF6F91")
+		"swap":
+			if weapons.swap_to_best(30.0):
+				swap_idle = 0.0
+				label = "武器切换 · %s" % CFG.weapon_name(weapons.active_id, weapons.active().level)
+			else:
+				label = "三线回充"
+			col = Color.html("#69F5DC")
+	if fx != null:
+		fx.pickup(player_pos, col, label)
 
 
 func _update_bullets(delta: float) -> void:
@@ -1073,28 +1411,60 @@ func _advance_bullets(arr: Array, delta: float) -> void:
 		var b: Bullet = arr[i]
 		b.prev = b.pos
 		b.age += delta
-		# 水雷：速度按 exp(-3.8dt) 衰减到停住，引信到期炸 10 颗破片
-		if b.kind == "mine":
-			b.vel *= exp(-CFG.MINE_DRAG * delta)
-			if b.fuse > 0.0:
-				b.fuse -= delta
-				if b.fuse <= 0.0:
+		# 引信优先于寿命结算（Unity Projectile.Tick）；按弹种分流爆炸
+		if b.fuse > 0.0:
+			b.fuse -= delta
+			if b.fuse <= 0.0:
+				if b.kind == "plasma":
+					_burst_plasma(b)
+				else:
 					_burst_mine(b)
-					arr.remove_at(i)
-					continue
-		# 追踪：角度钳制转向（Unity Projectile：max TurnRate×dt radians）
-		if b.homing and b.age > b.homing_delay and b.homing_time > 0.0:
+				arr.remove_at(i)
+				continue
+		b.life -= delta
+		if b.life <= 0.0:
+			if not b.friendly:
+				if b.kind == "mine":
+					_burst_mine(b)
+				elif b.kind == "plasma":
+					_burst_plasma(b)
+			arr.remove_at(i)
+			continue
+		if b.kind == "mine":
+			# 水雷速度指数衰减到停住；引信剩 0.9s 时一次性提示闪光
+			b.vel *= exp(-CFG.MINE_DRAG * delta)
+			if not b.armed and b.fuse > 0.0 and b.fuse < CFG.MINE_ARMED_FLASH:
+				b.armed = true
+				if fx != null:
+					fx.impact(b.pos, Color(1, 0.82, 0.35, 0.7), 33.48, 0.24)
+		elif b.wave != 0.0:
+			# 波动弹允许负振幅（Unity Wave!=0）
+			var spd := b.vel.length()
+			var ang := b.vel.angle() + sin(b.age * CFG.WAVE_PHASE_RATE + b.seed) * b.wave * delta
+			b.vel = Vector2(cos(ang), sin(ang)) * spd
+		# 追踪：有目标才消耗追踪时长；友军弹缓存目标，失效才重新索敌
+		if b.homing and b.homing_time > 0.0 and b.age >= b.homing_delay:
 			var target_pos := Vector2.ZERO
 			var has_target := false
 			if b.friendly:
-				var tgt := _nearest_enemy(b.pos)
-				if tgt != null:
-					target_pos = tgt.pos
+				var t = b.homing_target
+				var alive := false
+				if t != null:
+					if t is Enemy:
+						alive = enemies.has(t)
+					elif t is Boss:
+						alive = boss == t and not boss.dying
+				if not alive:
+					t = _nearest_target(b.pos)
+					b.homing_target = t
+				if t != null:
+					target_pos = t.pos
 					has_target = true
 			else:
 				target_pos = player_pos
 				has_target = true
 			if has_target:
+				b.homing_time -= delta
 				var spd := b.vel.length()
 				var cur_ang := b.vel.angle()
 				var want_ang := (target_pos - b.pos).angle()
@@ -1102,26 +1472,37 @@ func _advance_bullets(arr: Array, delta: float) -> void:
 				var max_turn := b.turn_rate * delta
 				var new_ang := cur_ang + clampf(diff_ang, -max_turn, max_turn)
 				b.vel = Vector2(cos(new_ang), sin(new_ang)) * spd
-			b.homing_time -= delta
-		# 波动弹：角速度正弦偏转（Unity：angle += sin(age×7.2+seed)×wave×dt）
-		if b.wave > 0.0:
-			var spd := b.vel.length()
-			var ang := b.vel.angle() + sin(b.age * CFG.WAVE_PHASE_RATE) * b.wave * delta
-			b.vel = Vector2(cos(ang), sin(ang)) * spd
 		b.pos += b.vel * delta
-		b.life -= delta
-		if b.life <= 0.0 or b.pos.y < -40.0 or b.pos.y > view_size.y + 40.0 \
-				or b.pos.x < -40.0 or b.pos.x > view_size.x + 40.0:
+		# 出界按 Unity 世界单位换算：x±1world=54px，y −0.5/+0.5world
+		if b.pos.x < -54.0 or b.pos.x > view_size.x + 54.0 \
+				or b.pos.y < -48.6 or b.pos.y > view_size.y + 59.4:
 			arr.remove_at(i)
 
 
 func _burst_mine(b: Bullet) -> void:
-	var n := b.split_on_expire
+	if b.friendly:
+		return
+	var n := b.split_on_expire if b.split_on_expire > 0 else CFG.MINE_BURST_COUNT
+	var speed := CFG.mine_burst_speed(zone)
 	for i in range(n):
-		var a := TAU * float(i) / n
-		var speed := CFG.MINE_BURST_SPEED + zone * 2.0
+		var a := TAU * float(i) / n + b.seed * 0.3
 		enemy_bullets.append(Bullet.new(b.pos, Vector2(cos(a), sin(a)) * speed,
-			5.0, 1.0, 4.0, false, b.tint, "shard"))
+			CFG.MINE_SHARD_RADIUS, 1.0, CFG.MINE_SHARD_LIFE, false, Color(1, 0.85, 0.35), "shard"))
+	if fx != null:
+		fx.impact(b.pos, Color(1, 0.82, 0.35, 0.85), 51.3, 0.3)
+	sfx.play_hit()
+
+
+func _burst_plasma(b: Bullet) -> void:
+	if b.friendly:
+		return
+	var n := b.split_on_expire if b.split_on_expire > 0 else CFG.PLASMA_BURST_COUNT
+	for i in range(n):
+		var a := TAU * float(i) / n + b.seed
+		enemy_bullets.append(Bullet.new(b.pos, Vector2(cos(a), sin(a)) * CFG.PLASMA_BURST_SPEED,
+			CFG.PLASMA_SHARD_RADIUS, 1.0, CFG.PLASMA_SHARD_LIFE, false, Color(1, 0.6, 0.3), "orb"))
+	if fx != null:
+		fx.impact(b.pos, Color(0.61, 0.55, 1, 0.8), 59.4, 0.32)
 
 
 ## 碰撞与受击结算已拆分到 CollisionSystem。
@@ -1373,9 +1754,13 @@ func _reset_game() -> void:
 	boss = null
 	boss_pending = false
 	boss_cleared = false
+	boss_warn = 0.0
+	beams.clear()
+	clear_hold = 0.0
 	crates.clear()
-	crate_timer = 8.0
-	crate_drought = 0
+	crate_timer = CFG.SUPPLY_INTERVAL
+	pity_weapon = 0
+	pity_drone = 0
 	drones.clear()
 	if music != null:
 		music.play_zone(1)
@@ -1435,6 +1820,7 @@ func _draw() -> void:
 	_draw_enemies()
 	if boss != null:
 		_draw_boss()
+		_draw_beams()
 	if not game_over:
 		_draw_player()
 		_draw_drones()
@@ -1471,21 +1857,48 @@ func _draw_boss() -> void:
 				boss.pos + Vector2(cos(ang), sin(ang)) * boss.size * 1.46,
 				Color(warn.r, warn.g, warn.b, 0.55 * k), 2.0, true)
 	_draw_ship(art, boss.pos, boss.size * grow, 0.0, Color(1, 1, 1, alpha))
-	_draw_ship(ring, boss.pos, boss.size * grow * 1.08, -boss.spin * 0.8,
+	_draw_ship(ring, boss.pos, boss.size * grow * 1.08, -boss.spin,
 		Color(1, 1, 1, (0.62 if boss.phase >= 1 else 0.40) * alpha))
 	if boss.flash > 0.0:
 		_draw_ship(art + "_mask", boss.pos, boss.size * grow, 0.0,
 			Color(1, 1, 1, clampf(boss.flash / 0.08, 0.0, 1.0) * 0.85 * alpha))
 
 
+## 光束渲染（Unity BossLaser）：预告细线+炮口呼吸 → 外层光晕+白芯，包络进 12/s 退 8/s。
+func _draw_beams() -> void:
+	if boss == null:
+		return
+	var length := view_size.y * CFG.BEAM_LENGTH_MUL
+	var tint := _html_color(CFG.BEAM_COLOR)
+	for bm in beams:
+		var active: bool = bm.t >= bm.warn and bm.t <= bm.warn + bm.active
+		var k := clampf(bm.t / maxf(0.01, bm.warn), 0.0, 1.0)
+		draw_set_transform(boss.pos, bm.angle, Vector2.ONE)
+		if not active:
+			draw_rect(Rect2(0, -1.1, length, 2.2), Color(1, 0.55, 0.62, 0.14 + k * 0.35))
+			var pulse := 1.0 + sin(bm.t * 22.0) * 0.18
+			draw_circle(Vector2.ZERO, (34.0 + k * 20.0) * 0.5 * pulse,
+				Color(tint.r, tint.g, tint.b, 0.2 + k * 0.3))
+		else:
+			var env := clampf(minf((bm.t - bm.warn) * 12.0,
+				(bm.warn + bm.active - bm.t) * 8.0), 0.0, 1.0)
+			draw_rect(Rect2(0, -bm.width * 0.5, length, bm.width),
+				Color(tint.r, tint.g, tint.b, env * 0.62))
+			draw_rect(Rect2(0, -bm.width * 0.19, length, bm.width * 0.38),
+				Color(1, 1, 1, env * 0.9))
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
 func _draw_crates() -> void:
 	for c in crates:
-		var tex := _ship_tex("crate_" + (c.kind if c.kind != "nova" else "gem"))
+		var tex := _ship_tex("crate_" + c.kind)
 		var side := 38.0 + sin(c.spin) * 2.0
 		_draw_shadow(c.pos + Vector2(0, 7), 16.0, Color(0.10, 0.06, 0.16, 0.20))
 		_blob(c.pos, 26.0, Color(1.0, 0.93, 0.72, 0.20), 5)
 		if tex != null:
-			draw_set_transform(c.pos, c.spin * 0.15, Vector2.ONE)
+			# 宝石不旋转，其余箱体按 42°/s 自旋（Unity SupplyCrate）
+			var rot: float = 0.0 if c.kind == "gem" else c.spin
+			draw_set_transform(c.pos, rot, Vector2.ONE)
 			draw_texture_rect(tex, Rect2(-side * 0.5, -side * 0.5, side, side), false, Color.WHITE)
 			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		else:
@@ -1495,11 +1908,10 @@ func _draw_crates() -> void:
 
 
 func _draw_drones() -> void:
-	var slots := _drone_slots()
-	var art := {"gunner": "drone_cannon", "lance": "drone_seeker", "aegis": "drone_support", "swarm": "drone_swarm"}
+	# 美术映射对齐 Unity DroneShip：gunner→seeker 机体，lance→cannon 机体
+	var art := {"gunner": "drone_seeker", "lance": "drone_cannon", "aegis": "drone_support", "swarm": "drone_swarm"}
 	for i in range(drones.size()):
-		var slot: Vector2 = slots[i] if i < slots.size() else Vector2.ZERO
-		var dp := player_pos + slot
+		var dp := Vector2(drones[i]["pos"])
 		_blob(dp, 17.0, Color(0.85, 1.0, 0.96, 0.18), 5)
 		_draw_ship(String(art[drones[i]["kind"]]), dp, 16.0, 0.0, Color(1, 1, 1, 0.96))
 
@@ -1526,11 +1938,11 @@ func _draw_bullets() -> void:
 		draw_line(tail, b.pos, Color(col.r, col.g, col.b, 0.35), b.radius * 1.25, true)
 		draw_circle(b.pos, b.radius * 1.5, Color(col.r, col.g, col.b, 0.16))
 		match String(b.kind):
-			"lance":
+			"lance", "beam":
 				var half: Vector2 = dir * b.radius * 3.2
 				draw_line(b.pos - half, b.pos + half, Color(1, 1, 1, 0.85), b.radius * 0.7, true)
 				draw_line(b.pos - half * 0.8, b.pos + half * 0.8, col, b.radius * 1.5, true)
-			"bolt", "micro":
+			"bolt", "micro", "drone":
 				var half2: Vector2 = dir * b.radius * 1.7
 				draw_line(b.pos - half2, b.pos + half2, col, b.radius * 0.9, true)
 				draw_circle(b.pos, b.radius * 0.62, Color(1, 1, 1, 0.9))

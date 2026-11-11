@@ -20,14 +20,15 @@ func resolve() -> void:
 	for bi in range(m.player_bullets.size() - 1, -1, -1):
 		var b = m.player_bullets[bi]
 		var consumed := false
-		# Boss 判定：椭圆（size×1.02 / ×0.82），棱镜对巨构 +18%
-		if m.boss != null and m.boss.entered and not m.boss.dying:
+		# Boss 判定：椭圆（size×1.02 / ×0.82）；一颗弹只结算一次（Unity HitBoss）
+		if m.boss != null and m.boss.entered and not m.boss.dying and not b.hit_boss:
 			var bdx: float = (b.pos.x - m.boss.pos.x) / (m.boss.hit_rx() + b.radius)
 			var bdy: float = (b.pos.y - m.boss.pos.y) / (m.boss.hit_ry() + b.radius)
 			if bdx * bdx + bdy * bdy <= 1.0:
+				b.hit_boss = true
 				var bdmg: float = b.damage * float(m.upgrades.get("damage_mul", 1.0)) \
 					* float(m.upgrades.get("break_mul", 1.0)) \
-					* (CFG.PRISM_BOSS_BONUS if b.kind == "lance" else 1.0)
+					* (b.boss_bonus if b.boss_bonus > 1.0 else 1.0)
 				if m.boss.take_damage(bdmg):
 					m.sfx.play_hit()
 					m._feel_freeze(CFG.FREEZE_HIT)
@@ -121,15 +122,15 @@ func kill_enemy(index: int, diff: Dictionary) -> void:
 	var was_volatile := e.affix == "volatile"
 	var was_splitter := e.kind == "splitter"
 	m.enemies.remove_at(index)
-	# 分裂体留下半血幼体；挥发机炸出一圈幼体
+	# 分裂体留下半血幼体（Unity：±16px、下方 4px、入场宽限 0.1s）；
+	# 挥发词缀炸出一枚等离子雷（Unity VolatileBlast），不是幼体
 	if was_splitter:
 		for s in [-1.0, 1.0]:
-			m.waves.spawn_enemy("shardling", at + Vector2(s * 14.0, 0.0), false, "none",
-				CFG.SPLITTER_CHILD_HP_FRAC)
+			m.waves.spawn_enemy("shardling", at + Vector2(s * 16.0, 4.0), false, "none",
+				CFG.SPLITTER_CHILD_HP_FRAC, 0.1)
 	elif was_volatile:
-		for i in range(CFG.VOLATILE_SPLIT):
-			var a := TAU * float(i) / CFG.VOLATILE_SPLIT
-			m.waves.spawn_enemy("shardling", at + Vector2(cos(a), sin(a)) * 18.0)
+		m._enemy_spawn_bullet(at, Vector2.ZERO, Color(1, 0.6, 0.3), 11.0, "plasma", 1.2,
+			{"fuse": CFG.VOLATILE_FUSE, "split": CFG.VOLATILE_SPLIT})
 	if e.elite:
 		m.sfx.play_boom()
 		m._feel_freeze(CFG.FREEZE_KILL)
@@ -139,6 +140,8 @@ func kill_enemy(index: int, diff: Dictionary) -> void:
 		m.fx.float_text(at + Vector2(0, -e.size * 0.7), "+%d" % int(e.score_value),
 			Color(1.0, 0.94, 0.72), 14)
 	m._add_shake(5.0 if e.elite else 1.8, 0.26)
+	# 击杀掉落（Unity Director.RollDrop）：精英必掉、陨石撒宝石、其余按权重表
+	m._roll_drop(e, at)
 
 
 func player_hit() -> void:

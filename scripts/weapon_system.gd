@@ -247,22 +247,58 @@ func cycle_weapon() -> bool:
 	return select_weapon(unlocked[(idx + 1) % unlocked.size()])
 
 
+## 武器升级箱（Unity GrantLevel）：当前线 +1；满级则解锁第一条未解锁线并切过去；
+## 三线全满级返回 false（由调用方折算分数），不会去升其它已满解锁线。
 func grant_level() -> bool:
 	var w := active()
 	if w.level < 5:
 		w.level += 1
 		return true
-	# 满级则解锁/升级下一条未解锁的线
 	for l in lines:
 		if not l.unlocked:
 			l.unlocked = true
-			return true
-	for l in lines:
-		if l.level < 5:
-			l.level += 1
+			l.level = 1
+			l.charge = 100.0
+			select_weapon(l.id)
 			return true
 	return false
 
 
-func unlock_line(id: String) -> void:
-	line(id).unlocked = true
+## 指定线升级箱（Unity GrantLine）：未解锁→解锁+1 级+满蓄能+切换；已解锁→+1 级并切换。
+func grant_line(id: String) -> bool:
+	var l := line(id)
+	if not l.unlocked:
+		l.unlocked = true
+		l.level = 1
+		l.charge = 100.0
+		select_weapon(id)
+		return true
+	if l.level < 5:
+		l.level += 1
+		if id != active_id:
+			select_weapon(id)
+		return true
+	return false
+
+
+## 换线箱（Unity SwapToBest）：切到蓄能最满的收纳线并补 topUp；
+## 只有一条线时改为给当前线回充 topUp+15，返回 false。
+func swap_to_best(top_up := 30.0) -> bool:
+	var holstered: Array = []
+	for l in lines:
+		if l.unlocked and l.id != active_id:
+			holstered.append(l)
+	if holstered.is_empty():
+		var w := active()
+		w.charge = minf(100.0, w.charge + top_up + 15.0)
+		if w.detuned and w.charge >= CFG.DETUNE_CLEAR_CHARGE:
+			w.detuned = false
+		return false
+	var best: LineState = holstered[0]
+	for l in holstered:
+		if l.charge > best.charge:
+			best = l
+	best.charge = minf(100.0, best.charge + top_up)
+	if best.detuned and best.charge >= CFG.DETUNE_CLEAR_CHARGE:
+		best.detuned = false
+	return select_weapon(best.id)

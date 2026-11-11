@@ -277,8 +277,13 @@ func _do_fire(diff: Dictionary) -> void:
 				var a := aim + (i - (n - 1) * 0.5) * deg_to_rad(31.5)
 				spawn_bullet.call(from, Vector2(cos(a), sin(a)) * 105.0, _bullet_tint("mine", tint), 9.0, "mine", 8.0)
 		"wavefire":
-			add.call(aim - deg_to_rad(20.6), sp * 0.82, "wave", 7.0)
-			add.call(aim + deg_to_rad(20.6), sp * 0.82, "wave", 7.0)
+			# 波动弹振幅 2.6（Unity EnemyShip：Wave=2.6），中轴补一枚高速针弹
+			var wa := aim - deg_to_rad(20.6)
+			spawn_bullet.call(from, Vector2(cos(wa), sin(wa)) * sp * 0.82,
+				_bullet_tint("wave", tint), 7.0, "wave", 9.0, {"wave": 2.6})
+			wa = aim + deg_to_rad(20.6)
+			spawn_bullet.call(from, Vector2(cos(wa), sin(wa)) * sp * 0.82,
+				_bullet_tint("wave", tint), 7.0, "wave", 9.0, {"wave": 2.6})
 			add.call(aim, sp * 1.1, "needle", 5.0)
 		"carrier":
 			add.call(aim - deg_to_rad(9.2), sp * 0.6, "orb", 7.0)
