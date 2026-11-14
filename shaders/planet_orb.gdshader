@@ -15,7 +15,11 @@ uniform float band_strength : hint_range(0.0, 1.0) = 0.20;
 uniform float light_angle : hint_range(-3.14, 3.14) = -0.72;
 
 void fragment() {
-	vec2 p = UV * 2.0 - 1.0;
+	// 像素化：UV 吸附到色块中心，输出前再走 8 级拜尔抖动
+	vec2 cells = vec2(44.0);
+	vec2 cell = floor(UV * cells);
+	vec2 uvq = (cell + 0.5) / cells;
+	vec2 p = uvq * 2.0 - 1.0;
 	float r = length(p);
 	if (r > 1.0) {
 		discard;
@@ -48,5 +52,13 @@ void fragment() {
 	float edge = smoothstep(0.935, 0.995, r);
 	col = mix(col, ink_col.rgb, edge * 0.92);
 
+	// 色阶量化 + 拜尔抖动，与背景的像素霓虹保持同一套视觉语言
+	int bx = int(mod(cell.x, 4.0));
+	int by = int(mod(cell.y, 4.0));
+	const float bm[16] = float[16](
+		0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0,
+		3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+	float dith = bm[by * 4 + bx] / 16.0;
+	col = floor(col * 8.0 + dith) / 8.0;
 	COLOR = vec4(col, 1.0);
 }

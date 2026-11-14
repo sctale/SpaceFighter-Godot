@@ -5,16 +5,16 @@ extends Node2D
 ## 不占用预渲染贴图，540x960 / 540x1200 / 720x960 都能铺满。
 
 const PALETTES := [
-	{"top": "#1B2450", "mid": "#4C6BD6", "bottom": "#F3C6D9",
-	 "neb_a": "#8FE8D8", "neb_b": "#B9A6FF", "glow": "#FFF0C2"},
-	{"top": "#2A1D4A", "mid": "#A84F96", "bottom": "#FFD8E3",
-	 "neb_a": "#FFB4DA", "neb_b": "#FFE0A8", "glow": "#FFE9C4"},
-	{"top": "#103C48", "mid": "#2A9E99", "bottom": "#F4F2D6",
-	 "neb_a": "#B4FFE0", "neb_b": "#FFE7A8", "glow": "#FFF6CC"},
-	{"top": "#2C1B44", "mid": "#D96D6F", "bottom": "#FFE1B4",
-	 "neb_a": "#FF9E8C", "neb_b": "#FFD27A", "glow": "#FFECC0"},
-	{"top": "#0C1130", "mid": "#3B3F88", "bottom": "#BBAEFF",
-	 "neb_a": "#8B7CFF", "neb_b": "#6FE7FF", "glow": "#D9D2FF"},
+	{"top": "#05030C", "mid": "#0F0726", "bottom": "#1A0A33",
+	 "neb_a": "#FF2E88", "neb_b": "#22F0E0", "glow": "#F2F7FF"},
+	{"top": "#07030F", "mid": "#1A0626", "bottom": "#2A0733",
+	 "neb_a": "#FF6BC1", "neb_b": "#7B4BFF", "glow": "#FFC14D"},
+	{"top": "#02080C", "mid": "#04202A", "bottom": "#062A38",
+	 "neb_a": "#22F0E0", "neb_b": "#B6FF3C", "glow": "#EAFBFF"},
+	{"top": "#0B0410", "mid": "#1E0A1E", "bottom": "#2E0D1A",
+	 "neb_a": "#FF6B3D", "neb_b": "#FF2E88", "glow": "#FFE9C4"},
+	{"top": "#05030F", "mid": "#100A2E", "bottom": "#180C44",
+	 "neb_a": "#7B4BFF", "neb_b": "#22F0E0", "glow": "#D9D2FF"},
 ]
 const ZONE_PALETTE := [0, 0, 1, 1, 2, 2, 3, 3, 4, 4]
 
@@ -60,7 +60,7 @@ func _ready() -> void:
 	else:
 		grad = Gradient.new()
 		grad.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
-		grad.colors = PackedColorArray([Color("#1B2450"), Color("#4C6BD6"), Color("#F3C6D9")])
+		grad.colors = PackedColorArray([Color("#05030C"), Color("#0F0726"), Color("#1A0A33")])
 		grad_tex = GradientTexture2D.new()
 		grad_tex.gradient = grad
 		grad_tex.width = 4

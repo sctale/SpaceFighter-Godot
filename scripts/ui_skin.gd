@@ -5,21 +5,21 @@ extends RefCounted
 ## Token 取自《UI 全面重构实施方案》；旧常量名保留为语义别名，调用方无需改名。
 ## 所有控件用 StyleBoxFlat 绘制，圆角/描边/投影一次缓存，避免每帧新建资源。
 
-# ---- Design Tokens（颜色）----
-const BG_PRIMARY := Color("#081321")   # 深空主背景
-const BG_PANEL := Color("#11243A")     # 面板底
-const BG_CARD := Color("#192F48")      # 卡片/次级面板底
-const ACCENT_BLUE := Color("#26C6F6")  # 主高亮（出发/选中/武器）
-const ACCENT_CYAN := Color("#35E0B5")  # 次高亮（冲刺/护盾/进度）
-const COLOR_GOLD := Color("#FFC857")   # 奖励/连击/星爆
+# ---- Design Tokens（像素霓虹）----
+const BG_PRIMARY := Color("#05030C")   # 深空主背景
+const BG_PANEL := Color("#0B0718")     # 面板底
+const BG_CARD := Color("#140B2A")      # 卡片/次级面板底
+const ACCENT_BLUE := Color("#FF2E88")  # 主高亮（出发/选中/武器）→ 霓虹洋红
+const ACCENT_CYAN := Color("#22F0E0")  # 次高亮（冲刺/护盾/进度）→ 霓虹青
+const COLOR_GOLD := Color("#FFC14D")   # 奖励/连击/星爆
 const COLOR_DANGER := Color("#FF4D5A") # 警示/失谐/危险
-const WARNING_BG := Color(0.16, 0.06, 0.12)  # Boss 预警横幅底（暗红）
-const WARNING_TINT := Color(1.0, 0.7, 0.7)   # 预警箭头/强调
-const WARNING_TEXT := Color(1.0, 0.85, 0.85) # 预警副文字
-const TEXT_PRIMARY := Color("#F1F6FC") # 主文字
-const TEXT_SECONDARY := Color("#91A8BE") # 次文字
-const BORDER := Color("#2E4E70")       # 面板描边
-const BORDER_SOFT := Color("#22394F")  # 弱描边/分隔
+const WARNING_BG := Color(0.18, 0.02, 0.12)  # Boss 预警横幅底（暗洋红）
+const WARNING_TINT := Color(1.0, 0.55, 0.72)  # 预警箭头/强调
+const WARNING_TEXT := Color(1.0, 0.88, 0.93)  # 预警副文字
+const TEXT_PRIMARY := Color("#F2F7FF") # 主文字
+const TEXT_SECONDARY := Color("#9AA8D8") # 次文字
+const BORDER := Color("#3B2A8C")       # 面板描边
+const BORDER_SOFT := Color("#241A4A")  # 弱描边/分隔
 
 # ---- Design Tokens（字号阶梯，逐屏阶段逐步采用）----
 const TEXT_XS := 9
@@ -30,10 +30,10 @@ const TEXT_XL := 24
 const TEXT_H1 := 34
 const TEXT_H2 := 42
 
-# ---- Design Tokens（圆角 / 间距）----
-const R_SM := 8.0
-const R_MD := 14.0
-const R_LG := 22.0
+# ---- Design Tokens（圆角 / 间距）：像素风用小圆角，接近直角 ----
+const R_SM := 3.0
+const R_MD := 5.0
+const R_LG := 7.0
 const SP_1 := 4.0
 const SP_2 := 8.0
 const SP_3 := 12.0
@@ -47,15 +47,15 @@ const PAPER := BG_PANEL              # 面板底
 const CREAM := BG_CARD               # 卡片底
 const WHITE := Color("#FFFFFF")
 const PINK := ACCENT_BLUE            # 主高亮
-const PINK_DEEP := Color("#5BC8F5")  # 亮蓝（标题/Boss 血条，暗底可读）
+const PINK_DEEP := Color("#FF6BC1")  # 亮洋红（标题/Boss 血条，暗底可读）
 const CYAN := ACCENT_CYAN
-const CYAN_DEEP := Color("#2FC79E")
+const CYAN_DEEP := Color("#0FA8A0")
 const GOLD := COLOR_GOLD
 const GOLD_DEEP := Color("#F0B23E")
-const VIOLET := Color("#A78BFA")
-const VIOLET_DEEP := Color("#8B72F0")
+const VIOLET := Color("#B06BFF")
+const VIOLET_DEEP := Color("#7B4BFF")
 const RED := COLOR_DANGER
-const BLUE := Color("#6FA8FF")
+const BLUE := Color("#5A3BFF")
 
 var font: Font
 var _styles := {}
@@ -65,7 +65,7 @@ func _init(p_font: Font = null) -> void:
 	font = p_font if p_font != null else ThemeDB.fallback_font
 
 
-func panel_style(fill: Color, radius := 18.0, border := BORDER, border_w := 3.0,
+func panel_style(fill: Color, radius := R_MD, border := BORDER, border_w := 2.0,
 		shadow := true) -> StyleBoxFlat:
 	var key := "%s|%s|%s|%s|%s" % [fill.to_html(), radius, border.to_html(), border_w, shadow]
 	if _styles.has(key):
@@ -84,7 +84,7 @@ func panel_style(fill: Color, radius := 18.0, border := BORDER, border_w := 3.0,
 	return sb
 
 
-func panel(ci: CanvasItem, rect: Rect2, fill: Color, radius := 18.0, border := BORDER,
+func panel(ci: CanvasItem, rect: Rect2, fill: Color, radius := R_MD, border := BORDER,
 		border_w := 3.0, shadow := true) -> void:
 	ci.draw_style_box(panel_style(fill, radius, border, border_w, shadow), rect)
 

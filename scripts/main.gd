@@ -185,6 +185,8 @@ var upgrade_flow: UpgradeSystem
 
 func _ready() -> void:
 	randomize()
+	# 像素精灵：全局最近邻采样，放大后保持硬边像素块
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_update_viewport_layout()
 	get_viewport().size_changed.connect(_update_viewport_layout)
 	is_mobile = OS.has_feature("mobile")
@@ -352,6 +354,7 @@ func _spawn_visuals() -> void:
 	ui = UIOverlay.new()
 	ui.main = self
 	ui.font = ui_font
+	ui.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	layer.add_child(ui)
 
 
@@ -363,6 +366,12 @@ func _load_font() -> void:
 		var f = load(path)
 		if f is Font:
 			ui_font = f
+			# 像素风：关掉抗锯齿/次像素，字形边缘保持硬边
+			if f is FontFile:
+				var ff := f as FontFile
+				ff.antialiasing = TextServer.FONT_ANTIALIASING_NONE
+				ff.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
+				ff.hinting = TextServer.HINTING_NONE
 	if ui_font == null:
 		ui_font = ThemeDB.fallback_font
 
@@ -1875,8 +1884,6 @@ func _blob(center: Vector2, radius: float, col: Color, layers := 7) -> void:
 func _draw_boss() -> void:
 	var art: String = ["boss_gatekeeper", "boss_weaver", "boss_helios",
 		"boss_dreadnought", "boss_serpent", "boss_seraph"][boss.index]
-	var ring: String = ["boss_gatekeeper_ring", "boss_weaver_ring", "boss_helios_ring",
-		"boss_dreadnought_ring", "boss_serpent_ring", "boss_seraph_ring"][boss.index]
 	var alpha := 1.0
 	var grow := 1.06
 	if boss.dying:
@@ -1896,8 +1903,15 @@ func _draw_boss() -> void:
 				boss.pos + Vector2(cos(ang), sin(ang)) * boss.size * 1.46,
 				Color(warn.r, warn.g, warn.b, 0.55 * k), 2.0, true)
 	_draw_ship(art, boss.pos, boss.size * grow, 0.0, Color(1, 1, 1, alpha))
-	_draw_ship(ring, boss.pos, boss.size * grow * 1.08, -boss.spin,
-		Color(1, 1, 1, (0.62 if boss.phase >= 1 else 0.40) * alpha))
+	# 环绕光环改用程序化霓虹弧线（像素风里贴图环会和精灵风格冲突）
+	var ring_a: float = (0.62 if boss.phase >= 1 else 0.40) * alpha
+	var ring_c := boss.tell_color
+	for k in range(3):
+		var a0 := -boss.spin + k * TAU / 3.0
+		draw_arc(boss.pos, boss.size * 1.10 + k * 2.0, a0, a0 + 1.55, 28,
+			Color(ring_c.r, ring_c.g, ring_c.b, ring_a * 0.85), 2.5, true)
+	draw_arc(boss.pos, boss.size * 1.20, boss.spin * 0.6, boss.spin * 0.6 + 2.4, 30,
+		Color(0.13, 0.94, 0.88, ring_a * 0.55), 1.5, true)
 	if boss.flash > 0.0:
 		_draw_ship(art + "_mask", boss.pos, boss.size * grow, 0.0,
 			Color(1, 1, 1, clampf(boss.flash / 0.08, 0.0, 1.0) * 0.85 * alpha))
@@ -2032,9 +2046,9 @@ func _draw_player() -> void:
 	if not _draw_ship(art, player_pos, PLAYER_ART_RADIUS, player_bank, Color(1.05, 1.05, 1.02, alpha)):
 		_draw_player_fallback(alpha)
 	else:
-		# 白色剪影轻叠一层，把赛璐璐阴影提亮成奶油色，同时不盖住描边
+		# 像素霓虹：机体整体提亮一档，确保深底上仍能一眼找到自机
 		_draw_ship(art + "_mask", player_pos, PLAYER_ART_RADIUS, player_bank,
-			Color(1.0, 0.99, 0.94, 0.28 * alpha))
+			Color(1.0, 1.0, 1.0, 0.34 * alpha))
 	if dash_t > 0.0:
 		draw_arc(player_pos, PLAYER_ART_RADIUS * 1.25, 0, TAU, 40,
 			Color(0.45, 1.0, 0.9, 0.55), 2.0, true)
