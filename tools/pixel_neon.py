@@ -28,15 +28,42 @@ PALETTE = [
     (61, 107, 224), (123, 91, 214),
 ]
 
-# 画布尺寸 / 像素网格：与 main.gd 的 ART_EXTENT=0.46 契约一致
+# 画布尺寸 / 像素网格：与 main.gd 的 ART_EXTENT=0.46 契约一致。
+# v1.9.0 把网格调粗（56/44/96 → 40/32/72），贴近参考作的块状像素颗粒。
 KIND = {
-    "player": (512, 56),
-    "enemy": (384, 44),
-    "boss": (640, 96),
+    "player": (512, 40),
+    "enemy": (384, 32),
+    "boss": (640, 72),
     "crate": (192, 24),
-    "drone": (192, 22),
+    "drone": (192, 20),
     "icon": (192, 20),
 }
+
+OUTLINE = (14, 4, 8)
+
+
+def _add_outline(img: Image.Image) -> Image.Image:
+    """在网格分辨率给剪影加 1px 深色描边（参考作的厚黑边）。"""
+    px = img.load()
+    w, h = img.size
+    solid = [[px[x, y][3] > 0 for x in range(w)] for y in range(h)]
+    for y in range(h):
+        for x in range(w):
+            if solid[y][x]:
+                continue
+            edge = False
+            for ny in (y - 1, y, y + 1):
+                for nx in (x - 1, x, x + 1):
+                    if nx < 0 or ny < 0 or nx >= w or ny >= h:
+                        continue
+                    if solid[ny][nx]:
+                        edge = True
+                        break
+                if edge:
+                    break
+            if edge:
+                px[x, y] = (OUTLINE[0], OUTLINE[1], OUTLINE[2], 255)
+    return img
 
 
 def _flood_bg(img: Image.Image, tol: int = 46) -> Image.Image:
@@ -115,7 +142,7 @@ def _harden_alpha(img: Image.Image, threshold: int = 128) -> Image.Image:
 
 
 def convert(raw_path: str, out_path: str, kind: str, alpha_input: bool = False,
-        tol: int = 46, no_pad: bool = False) -> None:
+        tol: int = 46, no_pad: bool = False, outline: bool = True) -> None:
     canvas_side, grid = KIND[kind]
     src = Image.open(raw_path).convert("RGBA")
     # 统一先缩到 1024 以内，泛洪更快
@@ -126,6 +153,8 @@ def convert(raw_path: str, out_path: str, kind: str, alpha_input: bool = False,
     small = _nearest(squared, grid)
     small = _harden_alpha(small)
     small = _quantize(small)
+    if outline:
+        small = _add_outline(small)
     # 再清一次透明像素的 RGB，避免缩放大时边缘溢色
     px = small.load()
     for y in range(grid):
@@ -155,6 +184,8 @@ def main() -> None:
                     help="泛洪去底的颜色容差；生成图背景接近纯黑时用 16 可保留厚描边")
     ap.add_argument("--no-pad", action="store_true",
                     help="输入已满足 0.46 外接半径合同时跳过方化")
+    ap.add_argument("--no-outline", action="store_true",
+                    help="关闭 1px 深色描边膨胀")
     args = ap.parse_args()
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -185,7 +216,7 @@ def main() -> None:
             print("MISSING", name)
             continue
         dst = os.path.join(out_dir, name + ".png")
-        convert(src, dst, kind, args.alpha, args.tol, args.no_pad)
+        convert(src, dst, kind, args.alpha, args.tol, args.no_pad, not args.no_outline)
         print("PIXEL", name, kind, "%d KB" % (os.path.getsize(dst) // 1024))
 
 

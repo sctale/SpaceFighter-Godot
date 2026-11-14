@@ -323,6 +323,18 @@ func _ready() -> void:
 			in_menu = false
 			_reset_game()
 			zone = 4
+		elif _shot_mode == "shield":
+			# v1.9.0：护盾环绕验收（3 层轨道光球）
+			in_menu = false
+			_reset_game()
+			player_shields = 3
+			player_pos.y -= 150.0
+		elif _shot_mode == "depth":
+			# v1.9.0：无尽深度横幅（第 21 区 = 深度 +44%）
+			mode = "endless"
+			in_menu = false
+			_reset_game()
+			zone = 21
 		_shot_taken = false
 
 
@@ -373,9 +385,11 @@ func _spawn_visuals() -> void:
 
 
 func _load_font() -> void:
-	# 随包带 Noto Sans CJK 子集（tools/gen_font_subset.py 生成），
+	# 随包带 Fusion Pixel 12px 中文像素字体（OFL），失败回退到 Noto CJK 子集；
 	# 不依赖系统字体回退——Unity 版就是在这里踩过"安卓中文整段空白"的坑。
-	var path := "res://assets/fonts/AuroraCJK.ttf"
+	var path := "res://assets/fonts/FusionPixel12.ttf"
+	if not ResourceLoader.exists(path):
+		path = "res://assets/fonts/AuroraCJK.ttf"
 	if ResourceLoader.exists(path):
 		var f = load(path)
 		if f is Font:
@@ -616,8 +630,32 @@ func _run_selftest() -> void:
 		failures += 1
 		print("SELFTEST_FAIL weather/stars")
 
+	# 11) 10 台专属 Boss：名单唯一、10 区映射到第 10 台
+	var boss_names := {}
+	for n in Boss.NAMES:
+		boss_names[n] = true
+	if Boss.NAMES.size() != 10 or boss_names.size() != 10 \
+			or CFG.boss_index_for(10, "campaign") != 9 \
+			or CFG.boss_index_for(11, "endless") != 0:
+		failures += 1
+		print("SELFTEST_FAIL boss roster")
+
+	# 12) 第 10 区通关后继续无尽：先三选一，选完 zone→11
+	mode = "campaign"
+	_reset_game()
+	zone = 10
+	won = true
+	game_over = true
+	_continue_endless()
+	var cont_ok: bool = not game_over and upgrade_pending and String(mode) == "endless"
+	if upgrade_pending:
+		upgrade_flow.choose(0)
+	if not cont_ok or zone != 11:
+		failures += 1
+		print("SELFTEST_FAIL endless continue %s zone=%d" % [str(cont_ok), zone])
+
 	if failures == 0:
-		print("SELFTEST_OK n=10")
+		print("SELFTEST_OK n=12")
 	else:
 		print("SELFTEST_FAIL n=%d" % failures)
 	get_tree().quit(0 if failures == 0 else 1)
@@ -812,7 +850,8 @@ func _update_player(delta: float) -> void:
 	player_pos.x = clampf(player_pos.x, CFG.BOUND_SIDE_INSET, view_size.x - CFG.BOUND_SIDE_INSET)
 	player_pos.y = clampf(player_pos.y, min_y,
 		view_size.y - CFG.BOUND_BOTTOM_INSET - safe_bottom)
-	player_bank = lerpf(player_bank, player_last_dir * 0.22, 1.0 - exp(-12.0 * delta))
+	# v1.9.0（R2）：机体姿态恒竖直向上，不再随横移倾斜
+	player_bank = 0.0
 
 
 func _update_player_fire(delta: float) -> void:
@@ -1031,12 +1070,12 @@ func _update_enemies(delta: float) -> void:
 
 func _start_boss() -> void:
 	boss = Boss.new()
-	# 六台 Boss 按星区轮换（第 7 星区起回到第 1 台）；无尽模式超过第 10 区也继续轮换
+	# v1.9.0：10 个星区各一台专属 Boss（0–9 不重复）；无尽模式从第 11 区起按 10 循环
 	var final := CFG.is_final_zone(int(zone)) and mode == "campaign"
-	var boss_index: int = 5 if final else (int(zone) - 1) % 6
-	boss.setup(boss_index, zone, waves.density_tier(), CFG.DIFFICULTY[difficulty])
+	boss.setup(CFG.boss_index_for(int(zone), mode), zone, waves.density_tier(),
+		CFG.DIFFICULTY[difficulty])
 	if final:
-		# 终局：裁决者额外 20% 血量，作为整局的收束
+		# 终局：终焉额外 20% 血量，作为整局的收束
 		boss.max_hp *= 1.2
 		boss.hp = boss.max_hp
 	boss.spawn_bullet = _enemy_spawn_bullet
@@ -1640,7 +1679,13 @@ func _unhandled_input(event: InputEvent) -> void:
 					music.set_paused(false)
 			return
 		if game_over:
-			if event.keycode == KEY_R or event.keycode == KEY_ENTER:
+			if won and mode == "campaign":
+				# 第 10 区通关：Enter 继续无尽，Esc 结束回菜单
+				if event.keycode == KEY_ENTER:
+					_continue_endless()
+				elif event.keycode == KEY_ESCAPE:
+					_to_menu()
+			elif event.keycode == KEY_R or event.keycode == KEY_ENTER:
 				_start_run()
 			return
 		match event.keycode:
@@ -1760,6 +1805,8 @@ func _handle_ui_action(action: String) -> bool:
 			else:
 				confirm_action = ""
 				_start_run()
+		"endless_continue":
+			_continue_endless()
 		"menu":
 			if paused and confirm_action != "menu":
 				confirm_action = "menu"
@@ -1799,6 +1846,20 @@ func weather_for_zone(z: int) -> String:
 
 func _start_run() -> void:
 	_reset_game()
+
+
+## v1.9.0：第 10 区通关后继续无尽。保留分数/机体/升级，先三选一，
+## 选完 zone→11（Boss 0 起循环），无尽每 10 区整体难度 ×1.2。
+func _continue_endless() -> void:
+	mode = "endless"
+	won = false
+	game_over = false
+	game_over_time = 0.0
+	stars = 0
+	enemy_bullets.clear()
+	beams.clear()
+	clear_hold = 0.0
+	_open_upgrade_draft()
 
 
 func _to_menu() -> void:
@@ -1952,7 +2013,8 @@ func _blob(center: Vector2, radius: float, col: Color, layers := 7) -> void:
 
 func _draw_boss() -> void:
 	var art: String = ["boss_gatekeeper", "boss_weaver", "boss_helios",
-		"boss_dreadnought", "boss_serpent", "boss_seraph"][boss.index]
+		"boss_dreadnought", "boss_serpent", "boss_seraph",
+		"boss_abysseye", "boss_frostwhale", "boss_forge", "boss_tyrant"][boss.index]
 	var alpha := 1.0
 	var grow := 1.06
 	if boss.dying:
@@ -1983,7 +2045,7 @@ func _draw_boss() -> void:
 		Color(0.13, 0.94, 0.88, ring_a * 0.55), 1.5, true)
 	if boss.flash > 0.0:
 		_draw_ship(art + "_mask", boss.pos, boss.size * grow, 0.0,
-			Color(1, 1, 1, clampf(boss.flash / 0.08, 0.0, 1.0) * 0.45 * alpha))
+			Color(1, 1, 1, clampf(boss.flash / 0.08, 0.0, 1.0) * 0.15 * alpha))
 
 
 ## 光束渲染（Unity BossLaser）：预告细线+炮口呼吸 → 外层光晕+白芯，包络进 12/s 退 8/s。
@@ -2058,6 +2120,8 @@ func _draw_bullets() -> void:
 		var dir: Vector2 = b.vel.normalized()
 		var tail: Vector2 = b.pos - dir * minf(20.0, b.pos.distance_to(b.prev))
 		draw_line(tail, b.pos, Color(col.r, col.g, col.b, 0.35), b.radius * 1.25, true)
+		# 亮底关卡上给自机子弹加一圈深色底，保证在云层上也清晰
+		draw_circle(b.pos, b.radius + 1.2, Color(0.10, 0.05, 0.10, 0.38))
 		draw_circle(b.pos, b.radius * 1.5, Color(col.r, col.g, col.b, 0.16))
 		match String(b.kind):
 			"lance", "beam":
@@ -2118,9 +2182,37 @@ func _draw_player() -> void:
 		# 3D 像素块：亮色天空上再叠一层白色轮廓，保证自机一眼可辨
 		_draw_ship(art + "_mask", player_pos, PLAYER_ART_RADIUS, player_bank,
 			Color(1.0, 1.0, 1.0, 0.34 * alpha))
+	# R3：护盾光球环绕机体旋转（画在机体之后，可绕到前方）
+	_draw_shield_orbit(alpha)
 	if dash_t > 0.0:
 		draw_arc(player_pos, PLAYER_ART_RADIUS * 1.25, 0, TAU, 40,
 			Color(0.45, 1.0, 0.9, 0.55), 2.0, true)
+
+
+## v1.9.0（R3）：每层护盾是一枚绕机体旋转的光球，带金色六边形边框与短拖尾。
+func _draw_shield_orbit(alpha: float) -> void:
+	var n := int(player_shields)
+	if n <= 0:
+		return
+	var phase := Time.get_ticks_msec() * 0.001 * CFG.SHIELD_ORBIT_SPEED
+	var radius := CFG.SHIELD_ORBIT_RADIUS
+	draw_arc(player_pos, radius, phase, phase + TAU * 0.72, 40,
+		Color(0.31, 0.85, 0.89, 0.18 * alpha), 1.5, true)
+	for i in range(n):
+		var a := phase + TAU * float(i) / float(n)
+		var p := player_pos + Vector2(cos(a), sin(a)) * radius
+		var tail := player_pos + Vector2(cos(a - 0.42), sin(a - 0.42)) * radius
+		draw_line(tail, p, Color(0.31, 0.85, 0.89, 0.22 * alpha), 2.0, true)
+		_blob(p, 17.0, Color(0.31, 0.85, 0.89, 0.26 * alpha), 3)
+		draw_circle(p, 9.0, Color(0.16, 0.42, 0.46, 0.95 * alpha))
+		draw_circle(p, 6.5, Color(0.37, 0.88, 0.93, 0.98 * alpha))
+		draw_circle(p + Vector2(-2, -2), 2.5, Color(1.0, 0.98, 0.88, 0.95 * alpha))
+		var hex := PackedVector2Array()
+		for k in range(6):
+			var ha := a + TAU * float(k) / 6.0
+			hex.append(p + Vector2(cos(ha), sin(ha)) * 11.0)
+		hex.append(hex[0])
+		draw_polyline(hex, Color(1.0, 0.78, 0.22, 0.90 * alpha), 2.0, true)
 
 
 func _draw_engine_flame(alpha: float, tint: Color) -> void:
@@ -2167,7 +2259,8 @@ func _draw_enemies() -> void:
 	for e: Enemy in enemies:
 		var base := _html_color(String(e.def.get("color", "#ff6f91")))
 		var accent := _html_color(String(e.def.get("accent", "#ffffff")))
-		var ang := e.turn + e.spin
+		# v1.9.0（R2）：敌机/僚机同样保持竖直；只有陨石保留自转
+		var ang := e.spin if e.kind == "rock" else 0.0
 		var vis := e.size * 1.06
 		_draw_shadow(e.pos + Vector2(0, e.size * 0.42), e.size * 0.92,
 			Color(0.10, 0.06, 0.16, 0.20))
@@ -2186,7 +2279,7 @@ func _draw_enemies() -> void:
 				Color(1.0, 0.98, 0.93, 0.08))
 			if e.flash > 0.0:
 				_draw_ship("enemy_" + e.kind + "_mask", e.pos, vis, ang,
-					Color(1, 1, 1, clampf(e.flash / 0.08, 0.0, 1.0) * 0.45))
+					Color(1, 1, 1, clampf(e.flash / 0.08, 0.0, 1.0) * 0.25))
 		if e.max_hp > 20.0:
 			var w: float = e.size * 2.0
 			var ratio := clampf(e.hp / e.max_hp, 0.0, 1.0)

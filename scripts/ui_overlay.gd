@@ -197,7 +197,8 @@ func _draw_upgrade(vw: float, vh: float, st: float, sb: float, flash: String) ->
 	skin.halftone(self, Rect2(card.position + Vector2(18, 16), Vector2(64, 44)),
 		Color(skin.CYAN.r, skin.CYAN.g, skin.CYAN.b, 0.13), 12.0)
 	skin.sparkle(self, card.position + Vector2(w - 46, 46), 12.0, skin.GOLD, _t)
-	skin.text_center(self, vw * 0.5, card.position.y + 52.0, "星区突破", 34, skin.PINK_DEEP, 0)
+	skin.text_spaced_center(self, vw * 0.5, card.position.y + 52.0, "星区突破", 32,
+		skin.PINK_DEEP, 40.0, 0)
 	skin.text_center(self, vw * 0.5, card.position.y + 76.0,
 		"BOSS 已击破 · 选择一项巡航强化", 11, skin.INK_SOFT, 0)
 	upgrade_buttons.clear()
@@ -266,7 +267,7 @@ func _draw_pause(vw: float, vh: float, st: float, sb: float, flash: String) -> v
 	skin.halftone(self, Rect2(card.position + Vector2(16, 16), Vector2(70, 46)),
 		Color(skin.PINK.r, skin.PINK.g, skin.PINK.b, 0.15), 12.0)
 	skin.sparkle(self, card.position + Vector2(w - 46, 48), 13.0, skin.GOLD, _t)
-	skin.text_center(self, vw * 0.5, card.position.y + 70.0, "暂停", 42, skin.PINK_DEEP, 0)
+	skin.text_spaced_center(self, vw * 0.5, card.position.y + 70.0, "暂停", 42, skin.PINK_DEEP, 58.0, 0)
 	skin.text_center(self, vw * 0.5, card.position.y + 96.0, "巡航已冻结", 13, skin.INK_SOFT, 0)
 	var stats := [
 		["分数", "%d" % int(main.score)], ["星区", "%02d" % int(main.zone)],
@@ -330,9 +331,9 @@ func _draw_results(vw: float, vh: float, st: float, sb: float, flash: String) ->
 			tint = skin.VIOLET
 	var won: bool = bool(main.won)
 	var endless: bool = String(main.mode) == "endless"
-	skin.text_center(self, vw * 0.5, card.position.y + 52.0,
+	skin.text_spaced_center(self, vw * 0.5, card.position.y + 52.0,
 		"巡航完成" if won else ("无尽终止" if endless else "巡航终止"), 32,
-		skin.GOLD_DEEP if won else skin.PINK_DEEP, 0)
+		skin.GOLD_DEEP if won else skin.PINK_DEEP, 38.0, 0)
 	skin.text_center(self, vw * 0.5, card.position.y + 74.0,
 		"裂隙尽头 · 你带着信号回来了" if won else "信号消失在裂隙深处", 11, skin.INK_SOFT, 0)
 	# 三星评级（参考《像素飞机大战》）：1=活下来；2=击杀/擦弹达标；3=满船体且分数达标
@@ -367,14 +368,26 @@ func _draw_results(vw: float, vh: float, st: float, sb: float, flash: String) ->
 		skin.text_right(self, rr.end.x - 12.0, rr.position.y + 22.0, rows[i][1], 15, skin.INK)
 	var by := card.position.y + 296.0 + 4 * 40.0 + 14.0
 	var bw := w - 56.0
-	over_buttons = {
-		"retry": Rect2(card.position.x + 28.0, by, bw, 58.0),
-		"menu": Rect2(card.position.x + 28.0, by + 70.0, bw, 48.0),
-	}
-	skin.button(self, over_buttons["retry"], "再来一次", skin.PINK, flash == "retry", 26, skin.WHITE)
-	skin.button(self, over_buttons["menu"], "返回主菜单", skin.PAPER, flash == "menu", 20, skin.INK)
-	skin.text_center(self, vw * 0.5, card.end.y - 16.0,
-		"点按按钮继续" if bool(main.is_mobile) else "R / Enter 快速重开", 11, skin.INK_SOFT, 0)
+	var campaign_win: bool = bool(main.won) and String(main.mode) == "campaign"
+	over_buttons = {}
+	if campaign_win:
+		# v1.9.0：第 10 区通关分流——继续无尽（每 10 区 +20%）或结束
+		over_buttons["endless_continue"] = Rect2(card.position.x + 28.0, by, bw, 62.0)
+		over_buttons["menu"] = Rect2(card.position.x + 28.0, by + 74.0, bw, 48.0)
+		skin.button(self, over_buttons["endless_continue"], "继续无尽", skin.GOLD,
+			flash == "endless_continue", 26, skin.BG_PRIMARY)
+		skin.button(self, over_buttons["menu"], "结束巡航 · 返回主菜单", skin.PAPER,
+			flash == "menu", 19, skin.INK)
+		skin.text_center(self, vw * 0.5, card.end.y - 16.0,
+			"无尽每 10 区难度 +20%" if bool(main.is_mobile) else "Enter 继续无尽 · Esc 结束", 11,
+			skin.INK_SOFT, 0)
+	else:
+		over_buttons["retry"] = Rect2(card.position.x + 28.0, by, bw, 58.0)
+		over_buttons["menu"] = Rect2(card.position.x + 28.0, by + 70.0, bw, 48.0)
+		skin.button(self, over_buttons["retry"], "再来一次", skin.PINK, flash == "retry", 26, skin.WHITE)
+		skin.button(self, over_buttons["menu"], "返回主菜单", skin.PAPER, flash == "menu", 20, skin.INK)
+		skin.text_center(self, vw * 0.5, card.end.y - 16.0,
+			"点按按钮继续" if bool(main.is_mobile) else "R / Enter 快速重开", 11, skin.INK_SOFT, 0)
 
 
 func _draw_banners(vw: float, vh: float, st: float) -> void:
@@ -384,9 +397,15 @@ func _draw_banners(vw: float, vh: float, st: float) -> void:
 		draw_rect(Rect2(0, y - 54.0, vw, 108.0), Color(skin.BG_PRIMARY.r, skin.BG_PRIMARY.g, skin.BG_PRIMARY.b, 0.55 * a))
 		draw_rect(Rect2(0, y - 54.0, vw, 3), Color(skin.WHITE.r, skin.WHITE.g, skin.WHITE.b, 0.35 * a))
 		draw_rect(Rect2(0, y + 51.0, vw, 3), Color(skin.WHITE.r, skin.WHITE.g, skin.WHITE.b, 0.35 * a))
-		skin.text_center(self, vw * 0.5, y - 8.0, "星区 %02d" % _banner_zone, 12, Color(skin.WHITE.r, skin.WHITE.g, skin.WHITE.b, a), 0)
-		skin.text_center(self, vw * 0.5, y + 32.0, UIMenu.ZONE_NAMES[clampi((_banner_zone - 1) % 10, 0, 9)],
-			34, Color(skin.WHITE.r, skin.WHITE.g, skin.WHITE.b, a), 3)
+		var zone_label := "星区 %02d" % _banner_zone
+		var depth_pct := int(roundf((CFG.endless_scale(int(_banner_zone)) - 1.0) * 100.0))
+		if depth_pct > 0:
+			zone_label += "  ·  深度 +%d%%" % depth_pct
+		skin.text_center(self, vw * 0.5, y - 8.0, zone_label, 12,
+			Color(skin.WHITE.r, skin.WHITE.g, skin.WHITE.b, a), 0)
+		skin.text_spaced_center(self, vw * 0.5, y + 32.0,
+			String(UIMenu.ZONE_NAMES[clampi((_banner_zone - 1) % 10, 0, 9)]), 30,
+			Color(skin.WHITE.r, skin.WHITE.g, skin.WHITE.b, a), 38.0, 3)
 	if _warning_t > 0.0:
 		var a := clampf(_warning_t / 0.5, 0.0, 1.0)
 		var y := st + vh * 0.40

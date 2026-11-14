@@ -201,6 +201,9 @@ const INVULN_AFTER_SHIELD := 1.3
 const INVULN_AFTER_REFLECT := 1.5
 const INVULN_AFTER_NOVA := 0.9
 const INVULN_ON_ZONE_CHANGE := 1.5
+# v1.9.0（R3）：护盾改为绕机体旋转的轨道光球
+const SHIELD_ORBIT_RADIUS := 44.0
+const SHIELD_ORBIT_SPEED := 1.6
 const INVULN_ON_BOSS_PHASE := 0.75
 const SPAWN_GRACE := 1.2
 
@@ -506,8 +509,27 @@ static func weapon_name(id: String, level: int) -> String:
 	return LINE_ALIASES[row][clampi(level, 1, 5) - 1]
 
 
+## v1.9.0：10 星区各一台专属 Boss（0–9）；无尽模式第 11 区起按 10 循环。
+const BOSS_COUNT := 10
+
+static func boss_index_for(zone: int, mode: String) -> int:
+	if mode == "endless":
+		return (maxi(1, zone) - 1) % BOSS_COUNT
+	return clampi(zone - 1, 0, BOSS_COUNT - 1)
+
+
+## 无尽深度：第 11 区起每 10 区整体难度 ×1.2（11–20 ×1.2，21–30 ×1.44…）。
+const ENDLESS_STEP := 1.2
+
+static func endless_scale(zone: int) -> float:
+	if zone <= 10:
+		return 1.0
+	return pow(ENDLESS_STEP, floorf(float(zone - 1) / 10.0))
+
+
 static func boss_hp_scale(zone: int) -> float:
-	return 1.0 + minf(BOSS_HP_GROWTH_CAP, maxf(0, zone - 1) * BOSS_HP_SECTOR_GROWTH)
+	return (1.0 + minf(BOSS_HP_GROWTH_CAP, maxf(0, zone - 1) * BOSS_HP_SECTOR_GROWTH)) \
+		* endless_scale(zone)
 
 
 ## 每星区最短停留：30s 起，逐区 +1.2s（第 10 区约 40.8s）。
@@ -545,7 +567,7 @@ static func run_stars(lives: int, max_hull: int, kills: int, graze: int, score: 
 
 
 static func enemy_hp_scale(sector: int) -> float:
-	return 1.0 + maxf(0, sector - 1) * ENEMY_HP_PER_SECTOR
+	return (1.0 + maxf(0, sector - 1) * ENEMY_HP_PER_SECTOR) * endless_scale(sector)
 
 
 static func pick_drone_kind(in_use: Array, roll: int) -> String:
@@ -560,9 +582,9 @@ static func enemy_hit_radius(size_px: float) -> float:
 	return size_px * ENEMY_COLLISION_SIZE
 
 
-## 敌弹速度：min(300, 150×(1+tier×0.14)) × 难度 bulletSpeed（entities.js:1393）。
-static func enemy_bullet_speed(tier: int, bullet_speed_mul: float) -> float:
-	return minf(300.0, 150.0 * (1.0 + tier * 0.14)) * bullet_speed_mul
+## 敌弹速度：min(300, 150×(1+tier×0.14)) × 难度 bulletSpeed × 无尽深度（entities.js:1393）。
+static func enemy_bullet_speed(tier: int, bullet_speed_mul: float, zone: int = 1) -> float:
+	return minf(300.0, 150.0 * (1.0 + tier * 0.14)) * bullet_speed_mul * endless_scale(zone)
 
 
 ## Boss 出招间隔：阶段基础间隔，链招/临界压到地板（entities.js:1945-1967）。

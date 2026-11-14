@@ -31,7 +31,8 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 		Color(0.31, 0.85, 0.89, 0.26), 1.5, true)
 	var hero_tex: Texture2D = main._ship_tex("player_pulse")
 	if hero_tex != null:
-		ci.draw_set_transform(hero_c + Vector2(0, bob), sin(t * 0.75) * 0.012, Vector2.ONE)
+		# R2：机体恒竖直，仅做上下浮动
+		ci.draw_set_transform(hero_c + Vector2(0, bob), 0.0, Vector2.ONE)
 		ci.draw_texture_rect(hero_tex, Rect2(-hero_size * 0.5, -hero_size * 0.5, hero_size, hero_size),
 			false, Color.WHITE)
 		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
@@ -49,7 +50,8 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 	ci.draw_set_transform(title_c, 0.0, Vector2.ONE)
 	ci.draw_rect(Rect2(-184, -64, 368, 3), Color(1.0, 0.78, 0.22, 0.75))
 	ci.draw_rect(Rect2(-184, 60, 368, 3), Color(0.31, 0.85, 0.89, 0.62))
-	skin.text_center(ci, 0, 20, "裂隙巡航", 54, Color("#FFF3D6"), 4)
+	# 像素字体在 36px 下字距会挤压，标题逐字定位，保证 4 个字均匀排开
+	skin.text_spaced_center(ci, 0.0, 16.0, "裂隙巡航", 36, Color("#FFF3D6"), 62.0, 2)
 	skin.text_center(ci, 0, 42, "A U R O R A   R I F T", 13, skin.GOLD, 2)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	skin.icon_star(ci, title_c + Vector2(-222, -18), 15.0, skin.GOLD)

@@ -1,7 +1,43 @@
-# Space Fighter — Godot 4.7.2 / v1.8.0
+# Space Fighter — Godot 4.7.2 / v1.9.0
 
 Migration of the retired Unity port, using `reference/web/www` (the original
 540x960 Canvas game) as the gameplay and numeric source of truth.
+
+## v1.9.0 ten unique bosses, upright planes and endless depth
+
+Plan: `docs/PLAN-v1.9.0.md`. Reference: 《像素飞机大战》 (Sky Wings).
+
+- **Ten unique bosses**: four new bosses — 墨提斯 (deep-space eye),
+  斯卡迪 (frost whale), 伏尔甘 (forge) and 涅墨西斯 (tyrant) — with new art and
+  three-phase move sequences. Zones 1–10 map to bosses 0–9 with no repeats;
+  endless rotates all ten from zone 11.
+- **Upright aircraft**: player, drones and enemy planes keep a fixed vertical
+  heading (only asteroids spin). The old banking tilt and menu hero sway are
+  removed.
+- **Orbiting shields**: each shield layer is now a cyan orb with a gold hex
+  frame orbiting the player (radius 44 px, 1.6 rad/s) instead of sitting behind
+  the hull; the HUD counter is unchanged.
+- **Post-zone-10 choice**: clearing the final boss shows "继续无尽 / 结束巡航".
+  Continuing keeps score, hull and upgrades, grants one draft pick, then starts
+  zone 11 in endless mode.
+- **Endless depth**: from zone 11 every 10 zones scale difficulty by ×1.2
+  (11–20 ×1.2, 21–30 ×1.44 …), applied to enemy/boss HP, bullet speed and fire
+  rate; the zone banner shows `深度 +N%`.
+- **Closer to the reference look**: bundled Fusion Pixel 12 px CJK font (OFL),
+  coarser sprite meshes (40/32/72) with a 1 px dark outline, pixel island
+  silhouettes and harder cloud blocks on sky stages, per-character title
+  spacing and square panels; the icon is redrawn as a red/gold fighter over a
+  golden sunburst.
+- Gate `VERIFY_OK checks=207`, `SELFTEST_OK n=12`.
+- Android versionName `1.9.0` / code `27`.
+
+![v1.9.0 menu](docs/shots/ui_v190_menu.png)
+![v1.9.0 action](docs/shots/ui_v190_play.png)
+![v1.9.0 shield](docs/shots/ui_v190_shield.png)
+![v1.9.0 boss1](docs/shots/ui_v190_boss.png)
+![v1.9.0 boss10](docs/shots/ui_v190_boss10.png)
+![v1.9.0 victory](docs/shots/ui_v190_victory.png)
+![v1.9.0 depth](docs/shots/ui_v190_depth.png)
 
 ## v1.8.0 full 3D pixel-block art restyle
 

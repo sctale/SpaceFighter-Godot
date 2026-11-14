@@ -3,6 +3,7 @@ extends SceneTree
 # Numeric contract gate for the Godot migration.
 # Run: godot --headless --path . --script res://tools/verify_numbers.gd
 const CFG := preload("res://scripts/game_config.gd")
+const BOSS := preload("res://scripts/boss.gd")
 
 var checks := 0
 
@@ -144,7 +145,7 @@ func _initialize() -> void:
 	_eq(failures, "beh.zone.quotaStep", CFG.ZONE_QUOTA_STEP, 4)
 	_eq(failures, "beh.zone.finalNo", CFG.is_final_zone(9), false)
 	_eq(failures, "beh.zone.finalYes", CFG.is_final_zone(10), true)
-	_eq(failures, "beh.boss.roster", Boss.NAMES.size(), 6)
+	_eq(failures, "beh.boss.roster", Boss.NAMES.size(), 10)
 	_eq(failures, "beh.boss.finalHp", Boss.BASE_HP[5], 500.0)
 
 	# ---- 补给节奏（Unity Director：首箱 20s 之后 19s、中途补给 55%、保底 3）----
@@ -253,6 +254,25 @@ func _initialize() -> void:
 	_eq(failures, "beh.stars.lowHull", CFG.run_stars(2, 3, 120, 40, 20000), 2)
 	_eq(failures, "beh.stars.lowScore", CFG.run_stars(3, 3, 120, 40, 19999), 2)
 
+	# ---- v1.9.0：10 台专属 Boss / 无尽深度 / 护盾环绕 ----
+	_eq(failures, "beh.boss.count", BOSS.NAMES.size(), 10)
+	_eq(failures, "beh.boss.namesUnique", _unique_count(BOSS.NAMES), 10)
+	_eq(failures, "beh.boss.seqCount", BOSS.SEQUENCES.size(), 10)
+	_eq(failures, "beh.boss.seqPhases", BOSS.SEQUENCES[9].size(), 3)
+	_eq(failures, "beh.boss.zone1", CFG.boss_index_for(1, "campaign"), 0)
+	_eq(failures, "beh.boss.zone10", CFG.boss_index_for(10, "campaign"), 9)
+	_eq(failures, "beh.boss.zone11Endless", CFG.boss_index_for(11, "endless"), 0)
+	_eq(failures, "beh.boss.zone20Endless", CFG.boss_index_for(20, "endless"), 9)
+	_eq(failures, "beh.endless.z10", CFG.endless_scale(10), 1.0)
+	_eq(failures, "beh.endless.z11", CFG.endless_scale(11), 1.2)
+	_eq(failures, "beh.endless.z20", CFG.endless_scale(20), 1.2)
+	_eq(failures, "beh.endless.z21", CFG.endless_scale(21), 1.44)
+	_eq(failures, "beh.endless.z31", CFG.endless_scale(31), 1.728)
+	_eq(failures, "beh.endless.bulletSpeed", CFG.enemy_bullet_speed(0, 1.0, 11),
+		CFG.enemy_bullet_speed(0, 1.0, 10) * 1.2)
+	_eq(failures, "beh.shield.radius", CFG.SHIELD_ORBIT_RADIUS, 44.0)
+	_eq(failures, "beh.shield.speed", CFG.SHIELD_ORBIT_SPEED, 1.6)
+
 	if failures.is_empty():
 		print("VERIFY_OK checks=%d" % checks)
 		quit(0)
@@ -269,3 +289,10 @@ func _eq(failures: Array, label: String, actual, expected) -> void:
 			failures.append("%s expected %s got %s" % [label, str(expected), str(actual)])
 	elif actual != expected:
 		failures.append("%s expected %s got %s" % [label, str(expected), str(actual)])
+
+
+func _unique_count(arr: Array) -> int:
+	var seen := {}
+	for v in arr:
+		seen[v] = true
+	return seen.size()

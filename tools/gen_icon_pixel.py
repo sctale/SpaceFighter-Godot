@@ -131,7 +131,7 @@ def make_fg(sprite_path: str, size: int = 1024) -> Image.Image:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--raw", default="build/raw_art2/app_icon.jpg")
+    ap.add_argument("--raw", default="build/raw_art2/app_icon_v190.jpg")
     args = ap.parse_args()
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     raw = args.raw if os.path.isabs(args.raw) else os.path.join(root, args.raw)

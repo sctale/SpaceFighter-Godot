@@ -17,8 +17,8 @@ uniform float nebula_amount : hint_range(0.0, 1.0) = 0.52;
 uniform float cloud_cover : hint_range(0.0, 1.0) = 0.0;
 uniform float vignette_strength : hint_range(0.0, 1.0) = 0.34;
 uniform float game_dim : hint_range(0.0, 1.0) = 0.0;
-// 像素网格密度：越大像素越细。148 接近参考作的块状颗粒。
-uniform float pixel_grid : hint_range(64.0, 512.0) = 148.0;
+// 像素网格密度：越大像素越细。120 接近参考作的块状颗粒。
+uniform float pixel_grid : hint_range(64.0, 512.0) = 120.0;
 uniform float scanline : hint_range(0.0, 1.0) = 0.0;
 
 float hash21(vec2 p) {
@@ -74,9 +74,9 @@ void fragment() {
 	vec2 cdrift = vec2(0.0, scroll * 0.22);
 	vec2 cq = puv * vec2(4.6, 6.4) + cdrift + vec2(TIME * 0.012 * time_scale, 0.0);
 	float cn = fbm(cq + fbm(cq * 0.8 + 2.7) * 0.55);
-	float cloud = smoothstep(0.56, 0.75, cn);
-	float cloud_core = smoothstep(0.68, 0.87, cn);
-	col = mix(col, nebula_b.rgb, cloud * cloud_cover * 0.45);
+	float cloud = step(0.56, cn);
+	float cloud_core = step(0.66, cn);
+	col = mix(col, nebula_b.rgb, cloud * cloud_cover * 0.35);
 	col = mix(col, nebula_a.rgb, cloud_core * cloud_cover * 0.62);
 
 	// 3) 星云 / 工业烟尘：低透明度大块，给深空与暗红关卡垫底
@@ -93,7 +93,7 @@ void fragment() {
 
 	// 5) 拜尔抖动量化：把连续渐变压成有限色阶，得到像素画质感
 	float d = bayer(cell);
-	col = floor(col * 9.0 + d) / 9.0;
+	col = floor(col * 7.0 + d) / 7.0;
 
 	// 6) 可选扫描线（默认关闭；保留 uniform 供兼容）
 	float sl = step(0.5, fract(FRAGCOORD.y * 0.5));

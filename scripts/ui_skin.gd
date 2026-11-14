@@ -30,10 +30,10 @@ const TEXT_XL := 24
 const TEXT_H1 := 34
 const TEXT_H2 := 42
 
-# ---- Design Tokens（圆角 / 间距）：像素块风格用接近直角的厚边 ----
-const R_SM := 2.0
-const R_MD := 4.0
-const R_LG := 6.0
+# ---- Design Tokens（圆角 / 间距）：像素块风格用直角厚边 ----
+const R_SM := 0.0
+const R_MD := 2.0
+const R_LG := 3.0
 const SP_1 := 4.0
 const SP_2 := 8.0
 const SP_3 := 12.0
@@ -104,6 +104,19 @@ func text_center(ci: CanvasItem, center_x: float, baseline_y: float, s: String,
 		size: int, color: Color, outline := 0) -> void:
 	var w := font.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
 	text(ci, Vector2(center_x - w * 0.5, baseline_y), s, size, color, HORIZONTAL_ALIGNMENT_LEFT, -1, outline)
+
+
+## 逐字定位的居中标题：像素字体的 CJK 字距在大字号下会挤压，用固定步长排开。
+func text_spaced_center(ci: CanvasItem, center_x: float, baseline_y: float, s: String,
+		size: int, color: Color, step: float, outline := 0) -> void:
+	var n := s.length()
+	if n <= 1:
+		text_center(ci, center_x, baseline_y, s, size, color, outline)
+		return
+	var total := step * float(n - 1)
+	for i in range(n):
+		text_center(ci, center_x - total * 0.5 + step * float(i), baseline_y,
+			s[i], size, color, outline)
 
 
 func text_right(ci: CanvasItem, right_x: float, baseline_y: float, s: String,

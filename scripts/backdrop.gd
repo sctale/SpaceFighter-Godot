@@ -7,12 +7,12 @@ extends Node2D
 ## 五套关卡主题（参考《像素飞机大战》）：白昼天空 / 黄昏 / 深蓝太空 / 暗红工业 / 翡翠星云。
 ## cloud 控制像素云覆盖率，stars 控制星点亮度。
 const PALETTES := [
-	{"top": "#14497F", "mid": "#2E78B4", "bottom": "#6FB4DC",
-	 "neb_a": "#FFF3D6", "neb_b": "#CFEFFF", "glow": "#FFF6E0",
-	 "cloud": 0.42, "stars": 0.0, "dim": 0.70},
+	{"top": "#0E3560", "mid": "#1F639B", "bottom": "#58A6D2",
+	 "neb_a": "#FFF3D6", "neb_b": "#FFE9BE", "glow": "#FFF6E0",
+	 "cloud": 0.44, "stars": 0.0, "dim": 0.70, "terrain": 1.0},
 	{"top": "#3D1030", "mid": "#7A2438", "bottom": "#C25A2E",
 	 "neb_a": "#FFC66B", "neb_b": "#FF9AA8", "glow": "#FFE9C0",
-	 "cloud": 0.36, "stars": 0.0, "dim": 0.74},
+	 "cloud": 0.38, "stars": 0.0, "dim": 0.74, "terrain": 0.8},
 	{"top": "#0A0F2A", "mid": "#14224A", "bottom": "#1F3468",
 	 "neb_a": "#3D6BE0", "neb_b": "#5FE0E8", "glow": "#EAF6FF",
 	 "cloud": 0.10, "stars": 1.0, "dim": 0.92},
@@ -57,6 +57,8 @@ var _cloud_target := 0.9
 var _stars_k := 0.0
 var _stars_target := 0.0
 var _dim_target := 0.9
+var _terrain_k := 0.0
+var _terrain_target := 0.0
 var _rng := RandomNumberGenerator.new()
 
 
@@ -192,12 +194,14 @@ func _process(delta: float) -> void:
 		sky_mat.set_shader_parameter("game_dim", clampf((1.0 - _dim) / 0.26, 0.0, 1.0))
 	if grad_rect != null:
 		grad_rect.modulate = Color(_dim, _dim, _dim, 1.0)
+	# 天空主题不显示星球/卫星（参考作为云海+岛屿构图）
+	var show_orbs: bool = menu and _terrain_target < 0.5
 	if planet_rect != null:
-		planet_rect.visible = menu
-		planet_rect.modulate = Color(1.0, 1.0, 1.0, 1.0) if menu else Color(1.0, 1.0, 1.0, 0.0)
+		planet_rect.visible = show_orbs
+		planet_rect.modulate = Color(1.0, 1.0, 1.0, 1.0) if show_orbs else Color(1.0, 1.0, 1.0, 0.0)
 	if moon_rect != null:
-		moon_rect.visible = menu
-		moon_rect.modulate = Color(1.0, 1.0, 1.0, 1.0) if menu else Color(1.0, 1.0, 1.0, 0.0)
+		moon_rect.visible = show_orbs
+		moon_rect.modulate = Color(1.0, 1.0, 1.0, 1.0) if show_orbs else Color(1.0, 1.0, 1.0, 0.0)
 	_scroll += delta * speed * 0.06
 	for s in stars:
 		s["v"] = float(s["v"]) + delta * speed * float(s["depth"]) * 0.00045
@@ -233,6 +237,7 @@ func _process(delta: float) -> void:
 		_colors[key] = Color(_colors[key]).lerp(Color(_target[key]), 1.0 - exp(-1.8 * delta))
 	_cloud = lerpf(_cloud, _cloud_target, 1.0 - exp(-1.8 * delta))
 	_stars_k = lerpf(_stars_k, _stars_target, 1.0 - exp(-1.8 * delta))
+	_terrain_k = lerpf(_terrain_k, _terrain_target, 1.0 - exp(-1.8 * delta))
 	_upload_colors()
 	queue_redraw()
 
@@ -247,11 +252,13 @@ func _apply_palette(idx: int, instant := false) -> void:
 	_cloud_target = float(p.get("cloud", 0.0))
 	_stars_target = float(p.get("stars", 1.0))
 	_dim_target = float(p.get("dim", 0.9))
+	_terrain_target = float(p.get("terrain", 0.0))
 	if instant or _colors.is_empty():
 		for k in _target:
 			_colors[k] = Color(_target[k])
 		_cloud = _cloud_target
 		_stars_k = _stars_target
+		_terrain_k = _terrain_target
 	_upload_colors()
 
 
@@ -293,9 +300,32 @@ func _draw() -> void:
 		_draw_gradient_fallback(menu)
 	else:
 		_draw_stars()
-	if menu:
+	# 天空主题（有岛屿层）不画星球，避免与参考作的"云海+岛屿"构图冲突
+	if menu and _terrain_target < 0.5:
 		_draw_planet_ring(Vector2(view_size.x * 0.88, view_size.y * 0.105), minf(view_size.x * 0.19, 108.0), 0.22)
+	_draw_terrain()
 	_draw_weather()
+
+
+## 天空关卡的像素岛屿剪影（参考《像素飞机大战》的地面/岛屿层），底部两层视差。
+func _draw_terrain() -> void:
+	if _terrain_k <= 0.02:
+		return
+	var vh := view_size.y
+	for layer in range(2):
+		var a := _terrain_k * (0.85 if layer == 0 else 0.62)
+		var col := Color(0.10, 0.28, 0.22, a) if layer == 0 else Color(0.05, 0.17, 0.15, a)
+		var pts := PackedVector2Array()
+		pts.append(Vector2(0, vh))
+		var step := 12.0
+		var x := 0.0
+		while x <= view_size.x + step:
+			var phase := (x + _scroll * 26.0 * float(layer + 1)) * 0.018
+			var h := 24.0 + sin(phase) * 15.0 + sin(phase * 2.6 + 1.7) * 7.0 + float(layer) * 18.0
+			pts.append(Vector2(x, vh - 2.0 - h))
+			x += step
+		pts.append(Vector2(view_size.x, vh))
+		draw_colored_polygon(pts, col)
 
 
 ## 雨丝与雷暴闪光：像素风短线段，风暴时追加一次全屏白光。

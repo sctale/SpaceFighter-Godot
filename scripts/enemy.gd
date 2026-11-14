@@ -104,6 +104,8 @@ func setup(p_kind: String, p_def: Dictionary, p_pos: Vector2, p_zone: int,
 		fire_mul = CFG.ARMORED_FIRE_MUL
 	if elite:
 		fire_mul *= CFG.ELITE_FIRE_MUL
+	# 无尽深度：每 10 区 +20%，开火间隔同比缩短
+	fire_mul /= CFG.endless_scale(zone)
 	var cd: Array = def.get("fireCd", [1.6, 2.2])
 	fire_timer = randf_range(float(cd[0]), float(cd[1])) * fire_mul
 
@@ -235,7 +237,7 @@ func _do_fire(diff: Dictionary) -> void:
 	if not spawn_bullet.is_valid() or not player_pos_fn.is_valid():
 		return
 	var fire_mode = def.get("fire", "aimed")
-	var sp := CFG.enemy_bullet_speed(tier, float(diff["bulletSpeed"]))
+	var sp := CFG.enemy_bullet_speed(tier, float(diff["bulletSpeed"]), zone)
 	var from := pos + Vector2(0, size * 0.4)
 	var target: Vector2 = player_pos_fn.call()
 	var aim := (target - pos).angle()
