@@ -1,7 +1,32 @@
-# Space Fighter — Godot 4.7.2 / v1.9.0
+# Space Fighter — Godot 4.7.2 / v1.10.0
 
 Migration of the retired Unity port, using `reference/web/www` (the original
 540x960 Canvas game) as the gameplay and numeric source of truth.
+
+## v1.10.0 wingman formation and a livelier soundtrack
+
+Reference: 《像素飞机大战》 (Sky Wings) APK at `reference/像素飞机大战.apk`.
+It is used only to analyse tempo/instrumentation; no audio assets are copied.
+
+- **Three-drone formation**: the old third slot `(0,48)` sat in the engine
+  flame. The trio is now left/right wing `(-84,2)/(84,2)` plus a right-rear
+  inner slot `(44,62)`, which clears the flame (±9 px), the hull and the
+  player bullet column, and stays out of the bottom-left weapon card and the
+  bottom-right dash/nova buttons. Added screenshot mode
+  `godot --path . --resolution 540x960 -- -shot drones`.
+- **Soundtrack rewritten**: `tools/gen_music.py` now synthesises ten distinct
+  arrangements with drums (kick/snare/hat/rim/tom/timpani/metal), moving bass,
+  arpeggios, brass stabs, lead themes, stereo pads and echo/multi-tap reverb.
+  BPM 84–142 (the reference tracks measure 98–167 BPM rock/electronic),
+  16-bar seamless loops with the tail folded back onto the loop point.
+  Each zone keeps its own key/mode/progression and identity, from bright
+  major (新曙光) and synthwave (紫电环) to industrial (虹吸井) and the
+  finale (无极之岸).
+- Gate `VERIFY_OK checks=209`, `SELFTEST_OK n=12`.
+- Android versionName `1.10.0` / code `28`.
+
+![v1.10.0 drones](docs/shots/ui_v1100_drones.png)
+![v1.10.0 play](docs/shots/ui_v1100_play.png)
 
 ## v1.9.0 ten unique bosses, upright planes and endless depth
 
@@ -339,7 +364,7 @@ godot --headless --path D:\V-Coding\space-fighter-godot \
   --script res://tools/verify_numbers.gd
 ```
 
-Expected: `VERIFY_OK checks=180` and exit code 0.
+Expected: `VERIFY_OK checks=209` and exit code 0.
 
 ## Behaviour self-test
 
@@ -347,7 +372,7 @@ Expected: `VERIFY_OK checks=180` and exit code 0.
 godot --headless --path D:\V-Coding\space-fighter-godot -- -selftest
 ```
 
-Expected: `SELFTEST_OK n=8` and exit code 0.
+Expected: `SELFTEST_OK n=12` and exit code 0.
 
 ## Export
 

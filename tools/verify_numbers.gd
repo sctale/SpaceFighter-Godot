@@ -205,7 +205,11 @@ func _initialize() -> void:
 	_eq(failures, "beh.bullet.cap", CFG.MAX_ENEMY_BULLETS, 420)
 
 	# ---- 僚机挂点 / 射速（Unity DroneShip）----
-	_eq(failures, "beh.drone.slots3", CFG.DRONE_SLOTS_3[2], Vector2(0, 48))
+	_eq(failures, "beh.drone.slots3", CFG.DRONE_SLOTS_3[2], Vector2(44, 62))
+	# 三机编队不得遮挡尾焰/子弹中列：第三槽 |x| 需大于机体半宽 + 僚机半宽，
+	# y 需落在机体下缘之下且仍在玩家最低点（view-104）的可视范围内
+	_eq(failures, "beh.drone.clearFlame", absf(CFG.DRONE_SLOTS_3[2].x) >= 42.0, true)
+	_eq(failures, "beh.drone.onScreen", CFG.DRONE_SLOTS_3[2].y + 18.0 <= 104.0, true)
 	_eq(failures, "beh.drone.cd.aegis", CFG.drone_fire_cd("aegis", "pulse"), 0.5)
 	_eq(failures, "beh.drone.cd.swarmGunner", CFG.drone_fire_cd("gunner", "swarm"), 0.86)
 	_eq(failures, "beh.drone.cd.prismLance", CFG.drone_fire_cd("lance", "prism"), 0.82)

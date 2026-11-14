@@ -329,6 +329,13 @@ func _ready() -> void:
 			_reset_game()
 			player_shields = 3
 			player_pos.y -= 150.0
+		elif _shot_mode == "drones":
+			# v1.10.0：三僚机编队验收（确认不遮挡尾焰与子弹中列）
+			in_menu = false
+			_reset_game()
+			for i in range(3):
+				_add_drone()
+			player_shields = 1
 		elif _shot_mode == "depth":
 			# v1.9.0：无尽深度横幅（第 21 区 = 深度 +44%）
 			mode = "endless"

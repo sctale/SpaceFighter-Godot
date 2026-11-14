@@ -475,7 +475,11 @@ const MAX_DRONES := 3
 const DRONE_KINDS := ["gunner", "lance", "aegis", "swarm"]
 const DRONE_SLOTS_1 := [Vector2(-64, 8)]
 const DRONE_SLOTS_2 := [Vector2(-64, 8), Vector2(64, 8)]
-const DRONE_SLOTS_3 := [Vector2(-68, 2), Vector2(68, 2), Vector2(0, 48)]
+# 三机编队：两翼僚机 + 右后内侧僚机。第三槽刻意避开 y 轴中列
+# （尾焰从机体 +30 烧到约 +88，子弹也从机体正中向上发射），
+# 同时避开 HUD：左下武器板 x<=230/y>=874、右下冲刺键 x>=356；
+# 也受底部边界限制（player 最低 y=view-104）。
+const DRONE_SLOTS_3 := [Vector2(-84, 2), Vector2(84, 2), Vector2(44, 62)]
 const AEGIS_PD_INTERVAL := 0.5
 const AEGIS_PD_RADIUS := 38.0
 const AEGIS_PD_CLEAR_COUNT := 4
