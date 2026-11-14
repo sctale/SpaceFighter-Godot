@@ -5,21 +5,21 @@ extends RefCounted
 ## Token 取自《UI 全面重构实施方案》；旧常量名保留为语义别名，调用方无需改名。
 ## 所有控件用 StyleBoxFlat 绘制，圆角/描边/投影一次缓存，避免每帧新建资源。
 
-# ---- Design Tokens（像素霓虹）----
-const BG_PRIMARY := Color("#05030C")   # 深空主背景
-const BG_PANEL := Color("#0B0718")     # 面板底
-const BG_CARD := Color("#140B2A")      # 卡片/次级面板底
-const ACCENT_BLUE := Color("#FF2E88")  # 主高亮（出发/选中/武器）→ 霓虹洋红
-const ACCENT_CYAN := Color("#22F0E0")  # 次高亮（冲刺/护盾/进度）→ 霓虹青
-const COLOR_GOLD := Color("#FFC14D")   # 奖励/连击/星爆
-const COLOR_DANGER := Color("#FF4D5A") # 警示/失谐/危险
-const WARNING_BG := Color(0.18, 0.02, 0.12)  # Boss 预警横幅底（暗洋红）
-const WARNING_TINT := Color(1.0, 0.55, 0.72)  # 预警箭头/强调
-const WARNING_TEXT := Color(1.0, 0.88, 0.93)  # 预警副文字
-const TEXT_PRIMARY := Color("#F2F7FF") # 主文字
-const TEXT_SECONDARY := Color("#9AA8D8") # 次文字
-const BORDER := Color("#3B2A8C")       # 面板描边
-const BORDER_SOFT := Color("#241A4A")  # 弱描边/分隔
+# ---- Design Tokens（3D 像素块 · 参考《像素飞机大战》）----
+const BG_PRIMARY := Color("#1A060C")   # 暗红主背景
+const BG_PANEL := Color("#2A0B12")     # 面板底
+const BG_CARD := Color("#3A121A")      # 卡片/次级面板底
+const ACCENT_BLUE := Color("#E8453C")  # 主高亮（出发/选中/武器）→ 樱桃红
+const ACCENT_CYAN := Color("#4FD8E4")  # 次高亮（冲刺/护盾/进度）→ 天空青
+const COLOR_GOLD := Color("#FFC637")   # 奖励/连击/星爆
+const COLOR_DANGER := Color("#FF5A4D") # 警示/失谐/危险
+const WARNING_BG := Color(0.23, 0.04, 0.05)  # Boss 预警横幅底（暗红）
+const WARNING_TINT := Color(1.0, 0.69, 0.23)  # 预警箭头/强调
+const WARNING_TEXT := Color(1.0, 0.95, 0.84)  # 预警副文字
+const TEXT_PRIMARY := Color("#FFF3D6") # 主文字（奶油白）
+const TEXT_SECONDARY := Color("#E0B49A") # 次文字（暖灰）
+const BORDER := Color("#7A2A2A")       # 面板描边（暗红铜）
+const BORDER_SOFT := Color("#4A1A20")  # 弱描边/分隔
 
 # ---- Design Tokens（字号阶梯，逐屏阶段逐步采用）----
 const TEXT_XS := 9
@@ -30,10 +30,10 @@ const TEXT_XL := 24
 const TEXT_H1 := 34
 const TEXT_H2 := 42
 
-# ---- Design Tokens（圆角 / 间距）：像素风用小圆角，接近直角 ----
-const R_SM := 3.0
-const R_MD := 5.0
-const R_LG := 7.0
+# ---- Design Tokens（圆角 / 间距）：像素块风格用接近直角的厚边 ----
+const R_SM := 2.0
+const R_MD := 4.0
+const R_LG := 6.0
 const SP_1 := 4.0
 const SP_2 := 8.0
 const SP_3 := 12.0
@@ -47,15 +47,15 @@ const PAPER := BG_PANEL              # 面板底
 const CREAM := BG_CARD               # 卡片底
 const WHITE := Color("#FFFFFF")
 const PINK := ACCENT_BLUE            # 主高亮
-const PINK_DEEP := Color("#FF6BC1")  # 亮洋红（标题/Boss 血条，暗底可读）
+const PINK_DEEP := Color("#FF7A45")  # 亮橙（标题/Boss 血条，暗底可读）
 const CYAN := ACCENT_CYAN
-const CYAN_DEEP := Color("#0FA8A0")
+const CYAN_DEEP := Color("#2E9BA8")
 const GOLD := COLOR_GOLD
-const GOLD_DEEP := Color("#F0B23E")
-const VIOLET := Color("#B06BFF")
-const VIOLET_DEEP := Color("#7B4BFF")
+const GOLD_DEEP := Color("#E09A1E")
+const VIOLET := Color("#8A6BE0")
+const VIOLET_DEEP := Color("#5B47B0")
 const RED := COLOR_DANGER
-const BLUE := Color("#5A3BFF")
+const BLUE := Color("#3D6BE0")
 
 var font: Font
 var _styles := {}
@@ -117,7 +117,7 @@ func button(ci: CanvasItem, rect: Rect2, label: String, fill: Color,
 	var r := rect
 	if pressed:
 		r.position.y += 3.0
-	panel(ci, r, fill, 18.0, BORDER, 3.0, not pressed)
+	panel(ci, r, fill, R_LG, BORDER, 3.0, not pressed)
 	# 顶部高光条与底部内阴影
 	var hi := Color(1, 1, 1, 0.30) if not pressed else Color(1, 1, 1, 0.14)
 	ci.draw_rect(Rect2(r.position + Vector2(14, 9), Vector2(r.size.x - 28, 3)), hi)

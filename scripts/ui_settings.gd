@@ -35,7 +35,7 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 		skin.text(ci, rr.position + Vector2(18, 44), String(opts[i][2]), skin.TEXT_XS,
 			Color(skin.INK_SOFT.r, skin.INK_SOFT.g, skin.INK_SOFT.b, 0.8))
 		var pill := Rect2(rr.end.x - 96.0, rr.position.y + 12.0, 76.0, 32.0)
-		skin.panel(ci, pill, skin.CYAN if on else Color("#2A3A52"), 10.0, skin.BORDER, 2.0, false)
+		skin.panel(ci, pill, skin.CYAN if on else Color("#4A2A2E"), 10.0, skin.BORDER, 2.0, false)
 		skin.text_center(ci, pill.get_center().x, pill.position.y + 22.0,
 			"开" if on else "关", skin.TEXT_MD, skin.BG_PRIMARY if on else skin.INK_SOFT, 0)
 

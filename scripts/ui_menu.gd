@@ -21,14 +21,14 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 	var start_y := safe_top + vh * 0.705
 	var hint_y := safe_top + vh * 0.850
 
-	# Hero 机体：像素精灵放大（最近邻），带霓虹光晕与环绕轨道
+	# Hero 机体：像素精灵放大（最近邻），带暖金/青双色光晕与环绕轨道
 	var bob := sin(t * 1.15) * 7.0
-	skin.glow(ci, hero_c + Vector2(0, bob), hero_size * 0.52, Color("#22F0E0"), 7, 0.22)
-	skin.glow(ci, hero_c + Vector2(0, bob), hero_size * 0.34, Color("#FF2E88"), 6, 0.16)
+	skin.glow(ci, hero_c + Vector2(0, bob), hero_size * 0.52, Color("#FFC637"), 7, 0.20)
+	skin.glow(ci, hero_c + Vector2(0, bob), hero_size * 0.34, Color("#4FD8E4"), 6, 0.14)
 	ci.draw_arc(hero_c + Vector2(0, bob), hero_size * 0.50, t * 0.35, t * 0.35 + PI * 1.35, 48,
-		Color(0.13, 0.94, 0.88, 0.30), 2.0, true)
+		Color(1.0, 0.78, 0.22, 0.34), 2.0, true)
 	ci.draw_arc(hero_c + Vector2(0, bob), hero_size * 0.58, -t * 0.24, -t * 0.24 + PI * 0.9, 40,
-		Color(1.0, 0.18, 0.53, 0.22), 1.5, true)
+		Color(0.31, 0.85, 0.89, 0.26), 1.5, true)
 	var hero_tex: Texture2D = main._ship_tex("player_pulse")
 	if hero_tex != null:
 		ci.draw_set_transform(hero_c + Vector2(0, bob), sin(t * 0.75) * 0.012, Vector2.ONE)
@@ -38,22 +38,24 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 	for i in range(6):
 		var a := t * 0.8 + i * TAU / 6.0
 		var p := hero_c + Vector2(cos(a), sin(a) * 0.42) * (hero_size * 0.55)
-		skin.sparkle(ci, p, 7.0, Color(0.13, 0.94, 0.88, 0.8), t + i)
+		skin.sparkle(ci, p, 7.0, Color(1.0, 0.82, 0.30, 0.85), t + i)
 
-	# 标题：霓虹像素文字（不再用 3D Logo，保持整屏像素风一致）
+	# 标题：厚描边像素块 Logo（参考《像素飞机大战》的暖金标题）
 	var title_c := Vector2(cx, title_y)
-	ci.draw_set_transform(title_c + Vector2(3, 6), 0.0, Vector2.ONE)
-	skin.panel(ci, Rect2(-190, -77, 380, 154), skin.PAPER, 6.0, skin.BORDER, 2.0, true)
+	ci.draw_set_transform(title_c + Vector2(4, 7), 0.0, Vector2.ONE)
+	skin.panel(ci, Rect2(-200, -80, 400, 160), skin.BG_CARD, 4.0, skin.GOLD_DEEP, 4.0, true)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	skin.glow(ci, title_c, 150.0, Color("#FF2E88"), 6, 0.20)
+	skin.glow(ci, title_c, 160.0, Color("#FFC637"), 6, 0.22)
 	ci.draw_set_transform(title_c, 0.0, Vector2.ONE)
-	ci.draw_rect(Rect2(-172, -60, 344, 2), Color(0.13, 0.94, 0.88, 0.55))
-	ci.draw_rect(Rect2(-172, 56, 344, 2), Color(1.0, 0.18, 0.53, 0.55))
-	skin.text_center(ci, 0, 18, "裂隙巡航", 54, Color("#FFF2FA"), 0)
-	skin.text_center(ci, 0, 40, "A U R O R A   R I F T", 12, skin.PINK_DEEP, 0)
+	ci.draw_rect(Rect2(-184, -64, 368, 3), Color(1.0, 0.78, 0.22, 0.75))
+	ci.draw_rect(Rect2(-184, 60, 368, 3), Color(0.31, 0.85, 0.89, 0.62))
+	skin.text_center(ci, 0, 20, "裂隙巡航", 54, Color("#FFF3D6"), 4)
+	skin.text_center(ci, 0, 42, "A U R O R A   R I F T", 13, skin.GOLD, 2)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	skin.sparkle(ci, title_c + Vector2(-212, -12), 13.0, Color(0.13, 0.94, 0.88), t)
-	skin.sparkle(ci, title_c + Vector2(214, 6), 10.0, Color(1.0, 0.18, 0.53), t + 1.2)
+	skin.icon_star(ci, title_c + Vector2(-222, -18), 15.0, skin.GOLD)
+	skin.icon_star(ci, title_c + Vector2(222, -18), 15.0, skin.GOLD)
+	skin.sparkle(ci, title_c + Vector2(-240, 14), 12.0, Color(1.0, 0.82, 0.30), t)
+	skin.sparkle(ci, title_c + Vector2(240, 14), 10.0, Color(0.31, 0.85, 0.89), t + 1.2)
 
 	# 最高分
 	var best_rect := Rect2(cx - 138.0, best_y - 86.0, 276.0, 54.0)

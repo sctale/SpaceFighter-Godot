@@ -1121,7 +1121,7 @@ func _update_boss(delta: float) -> void:
 			fx.float_text(boss.pos + Vector2(0, -40), "过关 +%d" % bonus, Color(1.0, 0.94, 0.72), 16)
 		sfx.play_boom()
 		if fx != null:
-			fx.explode(boss.pos, Color.html("#FFB3D9"), boss.size * 1.6, true)
+			fx.explode(boss.pos, Color.html("#FFD9A0"), boss.size * 1.6, true)
 			fx.nova(boss.pos)
 		_add_shake(17.28, 0.55)
 		_feel_freeze(CFG.FREEZE_BOSS_DIE)
@@ -1983,7 +1983,7 @@ func _draw_boss() -> void:
 		Color(0.13, 0.94, 0.88, ring_a * 0.55), 1.5, true)
 	if boss.flash > 0.0:
 		_draw_ship(art + "_mask", boss.pos, boss.size * grow, 0.0,
-			Color(1, 1, 1, clampf(boss.flash / 0.08, 0.0, 1.0) * 0.85 * alpha))
+			Color(1, 1, 1, clampf(boss.flash / 0.08, 0.0, 1.0) * 0.45 * alpha))
 
 
 ## 光束渲染（Unity BossLaser）：预告细线+炮口呼吸 → 外层光晕+白芯，包络进 12/s 退 8/s。
@@ -2115,7 +2115,7 @@ func _draw_player() -> void:
 	if not _draw_ship(art, player_pos, PLAYER_ART_RADIUS, player_bank, Color(1.05, 1.05, 1.02, alpha)):
 		_draw_player_fallback(alpha)
 	else:
-		# 像素霓虹：机体整体提亮一档，确保深底上仍能一眼找到自机
+		# 3D 像素块：亮色天空上再叠一层白色轮廓，保证自机一眼可辨
 		_draw_ship(art + "_mask", player_pos, PLAYER_ART_RADIUS, player_bank,
 			Color(1.0, 1.0, 1.0, 0.34 * alpha))
 	if dash_t > 0.0:
@@ -2186,7 +2186,7 @@ func _draw_enemies() -> void:
 				Color(1.0, 0.98, 0.93, 0.08))
 			if e.flash > 0.0:
 				_draw_ship("enemy_" + e.kind + "_mask", e.pos, vis, ang,
-					Color(1, 1, 1, clampf(e.flash / 0.08, 0.0, 1.0) * 0.85))
+					Color(1, 1, 1, clampf(e.flash / 0.08, 0.0, 1.0) * 0.45))
 		if e.max_hp > 20.0:
 			var w: float = e.size * 2.0
 			var ratio := clampf(e.hp / e.max_hp, 0.0, 1.0)

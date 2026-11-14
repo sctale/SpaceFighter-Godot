@@ -153,7 +153,7 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 	rects["dash"] = Rect2(dash_c - Vector2(dash_r, dash_r), Vector2(dash_r * 2, dash_r * 2))
 	rects["weapon"] = Rect2(swap_c - Vector2(swap_r, swap_r), Vector2(swap_r * 2, swap_r * 2))
 	var nova_ready := float(main.nova) >= 100.0
-	action_button(ci, skin, nova_c, nova_r, skin.GOLD if nova_ready else Color("#2A3A52"),
+	action_button(ci, skin, nova_c, nova_r, skin.GOLD if nova_ready else Color("#4A2A2E"),
 		"burst", "星爆", "%d%%" % int(float(main.nova)), float(main.nova) / 100.0,
 		skin.GOLD_DEEP, pressed == "nova", nova_ready)
 	action_button(ci, skin, dash_c, dash_r, skin.CYAN, "chevron", "冲刺",
@@ -161,7 +161,7 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 		1.0 - clampf(float(main.dash_cd) / CFG.DASH_COOLDOWN, 0.0, 1.0),
 		skin.CYAN_DEEP, pressed == "dash", float(main.dash_cd) <= 0.0)
 	var can_swap := int(main.weapons.unlocked_count()) >= 2
-	var swap_tint := wtint if can_swap else Color("#2A3A52")
+	var swap_tint := wtint if can_swap else Color("#4A2A2E")
 	action_button(ci, skin, swap_c, swap_r, swap_tint, "swap", "换线",
 		("L%d" % lv) if can_swap else "锁定", 1.0 if can_swap else 0.0,
 		skin.INK_SOFT, pressed == "weapon", can_swap)

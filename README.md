@@ -1,7 +1,43 @@
-# Space Fighter — Godot 4.7.2 / v1.7.0
+# Space Fighter — Godot 4.7.2 / v1.8.0
 
 Migration of the retired Unity port, using `reference/web/www` (the original
 540x960 Canvas game) as the gameplay and numeric source of truth.
+
+## v1.8.0 full 3D pixel-block art restyle
+
+Reference: 《像素飞机大战》 (Sky Wings). The whole visual layer was rebuilt to
+match its chunky 3D-pixel arcade look — gameplay and numbers are untouched.
+
+- **21 hero sprites re-generated** with Doubao (Seedream) using a single style
+  prompt (chunky 3D pixels, glossy toy-plastic shading, thick dark outline,
+  saturated cherry red / gold / jade / cyan), then converted by
+  `tools/pixel_neon.py` to 44/56/96 px meshes on a new 20-colour palette.
+  `--tol` keeps the thick outlines during background flood-fill.
+- **Crates and support drones** rebuilt: all ten supply crates are now drawn
+  procedurally (`tools/gen_crates_chunky.py`, gold trim + dark-red panel +
+  distinct type icon) and the four support drones were re-generated with
+  Doubao before pixel conversion.
+- **Five backdrop themes** cycle by zone: bright pixel-cloud sky, sunset
+  foundry, deep-navy space, dark-red industry and emerald nebula. The
+  `space_bg.gdshader` was rewritten around blocky pixel clouds, Bayer dithering
+  and a warm horizon; gameplay dims per theme so bullets stay readable.
+- **Whole UI reskinned**: dark-red copper panels, gold borders, cream text with
+  thick outlines, a warm-gold pixel logo with star emblems, near-square chunky
+  buttons; HUD, settings, draft, results and pause all use the new tokens.
+- **New icon set**: red/gold pixel fighter with star emblems on a dark-red
+  cloudy sky; the adaptive foreground uses the new in-game player sprite and
+  the background is gold rays plus pixel stars.
+- Hit flashes reduced from 0.85 to 0.45 alpha so bright sprites are not washed
+  out by sustained fire.
+- Gate `VERIFY_OK checks=191`, `SELFTEST_OK n=10`.
+- Android versionName `1.8.0` / code `26`.
+
+![v1.8.0 menu](docs/shots/ui_v180_menu.png)
+![v1.8.0 action](docs/shots/ui_v180_play.png)
+![v1.8.0 boss](docs/shots/ui_v180_boss.png)
+![v1.8.0 weather](docs/shots/ui_v180_weather.png)
+![v1.8.0 draft](docs/shots/ui_v180_upgrade.png)
+![v1.8.0 results](docs/shots/ui_v180_results.png)
 
 ## v1.7.0 endless mode, three-star rating, weather and new icon
 

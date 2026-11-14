@@ -4,17 +4,24 @@ extends Node2D
 ## 全屏自适应深空背景：程序化星云 shader + 三层视差星 + 赛璐璐星球/月面。
 ## 不占用预渲染贴图，540x960 / 540x1200 / 720x960 都能铺满。
 
+## 五套关卡主题（参考《像素飞机大战》）：白昼天空 / 黄昏 / 深蓝太空 / 暗红工业 / 翡翠星云。
+## cloud 控制像素云覆盖率，stars 控制星点亮度。
 const PALETTES := [
-	{"top": "#05030C", "mid": "#0F0726", "bottom": "#1A0A33",
-	 "neb_a": "#FF2E88", "neb_b": "#22F0E0", "glow": "#F2F7FF"},
-	{"top": "#07030F", "mid": "#1A0626", "bottom": "#2A0733",
-	 "neb_a": "#FF6BC1", "neb_b": "#7B4BFF", "glow": "#FFC14D"},
-	{"top": "#02080C", "mid": "#04202A", "bottom": "#062A38",
-	 "neb_a": "#22F0E0", "neb_b": "#B6FF3C", "glow": "#EAFBFF"},
-	{"top": "#0B0410", "mid": "#1E0A1E", "bottom": "#2E0D1A",
-	 "neb_a": "#FF6B3D", "neb_b": "#FF2E88", "glow": "#FFE9C4"},
-	{"top": "#05030F", "mid": "#100A2E", "bottom": "#180C44",
-	 "neb_a": "#7B4BFF", "neb_b": "#22F0E0", "glow": "#D9D2FF"},
+	{"top": "#14497F", "mid": "#2E78B4", "bottom": "#6FB4DC",
+	 "neb_a": "#FFF3D6", "neb_b": "#CFEFFF", "glow": "#FFF6E0",
+	 "cloud": 0.42, "stars": 0.0, "dim": 0.70},
+	{"top": "#3D1030", "mid": "#7A2438", "bottom": "#C25A2E",
+	 "neb_a": "#FFC66B", "neb_b": "#FF9AA8", "glow": "#FFE9C0",
+	 "cloud": 0.36, "stars": 0.0, "dim": 0.74},
+	{"top": "#0A0F2A", "mid": "#14224A", "bottom": "#1F3468",
+	 "neb_a": "#3D6BE0", "neb_b": "#5FE0E8", "glow": "#EAF6FF",
+	 "cloud": 0.10, "stars": 1.0, "dim": 0.92},
+	{"top": "#1E060C", "mid": "#3A0D14", "bottom": "#58181C",
+	 "neb_a": "#C22C2C", "neb_b": "#FF8A3D", "glow": "#FFD9A0",
+	 "cloud": 0.24, "stars": 0.35, "dim": 0.90},
+	{"top": "#07180F", "mid": "#0F3324", "bottom": "#174A33",
+	 "neb_a": "#4FCB5E", "neb_b": "#5FE0E8", "glow": "#EFFFE0",
+	 "cloud": 0.12, "stars": 0.9, "dim": 0.90},
 ]
 const ZONE_PALETTE := [0, 0, 1, 1, 2, 2, 3, 3, 4, 4]
 
@@ -45,6 +52,11 @@ var _dim := 1.0
 var _palette_i := 0
 var _colors := {}
 var _target := {}
+var _cloud := 0.9
+var _cloud_target := 0.9
+var _stars_k := 0.0
+var _stars_target := 0.0
+var _dim_target := 0.9
 var _rng := RandomNumberGenerator.new()
 
 
@@ -67,7 +79,7 @@ func _ready() -> void:
 	else:
 		grad = Gradient.new()
 		grad.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
-		grad.colors = PackedColorArray([Color("#05030C"), Color("#0F0726"), Color("#1A0A33")])
+		grad.colors = PackedColorArray([Color("#1E5FA8"), Color("#3E8FD0"), Color("#8FD3EE")])
 		grad_tex = GradientTexture2D.new()
 		grad_tex.gradient = grad
 		grad_tex.width = 4
@@ -172,14 +184,14 @@ func _process(delta: float) -> void:
 		menu = bool(main.get("in_menu"))
 		if not menu:
 			speed = 22.0 if not bool(main.get("paused")) else 8.0
-	# 战斗时压暗天空，保证弹幕/机体对比；菜单保持明亮插画感
-	var dim_target := 1.0 if menu else 0.74
+	# 战斗时轻微压暗天空，保证弹幕/机体对比；参考作本身是高饱和亮背景，不再大幅压暗
+	var dim_target := 1.0 if menu else _dim_target
 	_dim = lerpf(_dim, dim_target, 1.0 - exp(-2.4 * delta))
 	if sky != null:
-		sky.modulate = Color(_dim * 0.98, _dim, _dim * 1.06, 1.0)
+		sky.modulate = Color(_dim, _dim, _dim, 1.0)
 		sky_mat.set_shader_parameter("game_dim", clampf((1.0 - _dim) / 0.26, 0.0, 1.0))
 	if grad_rect != null:
-		grad_rect.modulate = Color(_dim * 0.98, _dim, _dim * 1.06, 1.0)
+		grad_rect.modulate = Color(_dim, _dim, _dim, 1.0)
 	if planet_rect != null:
 		planet_rect.visible = menu
 		planet_rect.modulate = Color(1.0, 1.0, 1.0, 1.0) if menu else Color(1.0, 1.0, 1.0, 0.0)
@@ -219,6 +231,8 @@ func _process(delta: float) -> void:
 		set_weather("clear")
 	for key in _target:
 		_colors[key] = Color(_colors[key]).lerp(Color(_target[key]), 1.0 - exp(-1.8 * delta))
+	_cloud = lerpf(_cloud, _cloud_target, 1.0 - exp(-1.8 * delta))
+	_stars_k = lerpf(_stars_k, _stars_target, 1.0 - exp(-1.8 * delta))
 	_upload_colors()
 	queue_redraw()
 
@@ -230,9 +244,14 @@ func _apply_palette(idx: int, instant := false) -> void:
 		"top": Color.html(p["top"]), "mid": Color.html(p["mid"]), "bottom": Color.html(p["bottom"]),
 		"neb_a": Color.html(p["neb_a"]), "neb_b": Color.html(p["neb_b"]), "glow": Color.html(p["glow"]),
 	}
+	_cloud_target = float(p.get("cloud", 0.0))
+	_stars_target = float(p.get("stars", 1.0))
+	_dim_target = float(p.get("dim", 0.9))
 	if instant or _colors.is_empty():
 		for k in _target:
 			_colors[k] = Color(_target[k])
+		_cloud = _cloud_target
+		_stars_k = _stars_target
 	_upload_colors()
 
 
@@ -247,20 +266,21 @@ func _upload_colors() -> void:
 	sky_mat.set_shader_parameter("glow_color", _colors["glow"])
 	sky_mat.set_shader_parameter("scroll", _scroll)
 	sky_mat.set_shader_parameter("time_scale", 1.0)
+	sky_mat.set_shader_parameter("cloud_cover", _cloud)
 	if planet_mat != null:
 		planet_mat.set_shader_parameter("light_col", Color(_colors["glow"]).lerp(Color.WHITE, 0.32))
 		planet_mat.set_shader_parameter("mid_col", Color(_colors["neb_b"]).lerp(Color(_colors["bottom"]), 0.28))
 		planet_mat.set_shader_parameter("dark_col", Color(_colors["mid"]).darkened(0.38))
 		planet_mat.set_shader_parameter("band_col", Color(_colors["glow"]).lerp(Color.WHITE, 0.55))
 		planet_mat.set_shader_parameter("rim_col", Color(_colors["glow"]).lerp(Color.WHITE, 0.65))
-		planet_mat.set_shader_parameter("ink_col", Color("#2B2338"))
+		planet_mat.set_shader_parameter("ink_col", Color("#3A1520"))
 	if moon_mat != null:
 		moon_mat.set_shader_parameter("light_col", Color(_colors["neb_a"]).lerp(Color.WHITE, 0.42))
 		moon_mat.set_shader_parameter("mid_col", Color(_colors["neb_a"]).lerp(Color.WHITE, 0.12))
 		moon_mat.set_shader_parameter("dark_col", Color(_colors["neb_a"]).darkened(0.30))
 		moon_mat.set_shader_parameter("band_col", Color.WHITE)
 		moon_mat.set_shader_parameter("rim_col", Color.WHITE)
-		moon_mat.set_shader_parameter("ink_col", Color("#2B2338"))
+		moon_mat.set_shader_parameter("ink_col", Color("#3A1520"))
 
 
 func _draw() -> void:
@@ -307,13 +327,15 @@ func _gradient_blob(c: Vector2, r: float, col: Color, alpha: float) -> void:
 
 
 func _draw_stars() -> void:
+	if _stars_k <= 0.02:
+		return
 	for s in stars:
 		var pos := Vector2(float(s["u"]) * view_size.x, float(s["v"]) * view_size.y)
 		var depth := float(s["depth"])
 		var tw := 0.62 + 0.38 * sin(_time * 2.2 + float(s["phase"]))
-		var col := Color(1.0, 0.97, 0.90, (0.25 + 0.75 * depth) * tw)
+		var col := Color(1.0, 0.97, 0.90, (0.25 + 0.75 * depth) * tw * _stars_k)
 		if depth > 0.9:
-			col = Color(1.0, 0.88, 0.94, 0.95 * tw)
+			col = Color(1.0, 0.88, 0.94, 0.95 * tw * _stars_k)
 		var r := float(s["size"])
 		if bool(s["sparkle"]) and depth > 0.5:
 			var l := r * 5.0

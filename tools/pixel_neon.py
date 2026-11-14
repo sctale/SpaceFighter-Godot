@@ -17,14 +17,15 @@ from collections import deque
 
 from PIL import Image
 
-# 霓虹色板：暗底 + 洋红 + 青 + 紫 + 少量点缀色
+# 3D 像素块色板（参考《像素飞机大战》）：暗红底 + 红/金/绿/青/蓝高饱和玩具色
 PALETTE = [
-    (5, 3, 12), (12, 8, 32), (26, 16, 56), (42, 27, 94), (59, 42, 140),
-    (90, 59, 255), (123, 75, 255), (176, 107, 255),
-    (255, 46, 136), (255, 107, 193), (255, 155, 216),
-    (15, 168, 160), (34, 240, 224), (124, 249, 238),
-    (182, 255, 60), (255, 193, 77), (255, 107, 61),
-    (242, 247, 255), (168, 180, 216), (90, 107, 150),
+    (24, 6, 10), (42, 10, 16), (58, 16, 22), (78, 24, 28),
+    (120, 32, 32), (168, 44, 40), (216, 69, 60), (244, 116, 87),
+    (224, 154, 30), (255, 198, 55), (255, 230, 150),
+    (255, 243, 214), (232, 220, 200),
+    (46, 155, 69), (79, 203, 94), (160, 235, 150),
+    (47, 184, 201), (95, 224, 232),
+    (61, 107, 224), (123, 91, 214),
 ]
 
 # 画布尺寸 / 像素网格：与 main.gd 的 ART_EXTENT=0.46 契约一致
@@ -113,14 +114,15 @@ def _harden_alpha(img: Image.Image, threshold: int = 128) -> Image.Image:
     return img
 
 
-def convert(raw_path: str, out_path: str, kind: str, alpha_input: bool = False) -> None:
+def convert(raw_path: str, out_path: str, kind: str, alpha_input: bool = False,
+        tol: int = 46, no_pad: bool = False) -> None:
     canvas_side, grid = KIND[kind]
     src = Image.open(raw_path).convert("RGBA")
     # 统一先缩到 1024 以内，泛洪更快
     if max(src.size) > 1200:
         src = src.resize((1024, int(1024 * src.size[1] / src.size[0])), Image.LANCZOS)
-    stripped = _trim_alpha(src) if alpha_input else _flood_bg(src)
-    squared = _square_pad(stripped)
+    stripped = _trim_alpha(src) if alpha_input else _flood_bg(src, tol)
+    squared = stripped if no_pad else _square_pad(stripped)
     small = _nearest(squared, grid)
     small = _harden_alpha(small)
     small = _quantize(small)
@@ -149,6 +151,10 @@ def main() -> None:
     ap.add_argument("--jobs", default="")
     ap.add_argument("--alpha", action="store_true",
                     help="输入已带透明通道（用于把旧美术像素化）")
+    ap.add_argument("--tol", type=int, default=46,
+                    help="泛洪去底的颜色容差；生成图背景接近纯黑时用 16 可保留厚描边")
+    ap.add_argument("--no-pad", action="store_true",
+                    help="输入已满足 0.46 外接半径合同时跳过方化")
     args = ap.parse_args()
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -179,7 +185,7 @@ def main() -> None:
             print("MISSING", name)
             continue
         dst = os.path.join(out_dir, name + ".png")
-        convert(src, dst, kind, args.alpha)
+        convert(src, dst, kind, args.alpha, args.tol, args.no_pad)
         print("PIXEL", name, kind, "%d KB" % (os.path.getsize(dst) // 1024))
 
 
