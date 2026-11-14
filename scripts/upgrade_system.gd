@@ -116,7 +116,11 @@ func choose(index: int) -> void:
 			m.upgrades["rift_score"] = float(m.upgrades["rift_score"]) + CFG.UPGRADE_RIFT_SCORE_STEP
 	m.upgrade_pending = false
 	m.upgrade_options.clear()
-	m.zone = mini(10, m.zone + 1)
+	# 无尽模式星区不封顶（参考《像素飞机大战》的无尽关卡），巡航仍封顶 10
+	if String(m.mode) == "endless":
+		m.zone = m.zone + 1
+	else:
+		m.zone = mini(10, m.zone + 1)
 	# AdvanceSector 对齐：换区清残敌/敌弹/光束，补给计时器按 Unity 原样延续
 	m.enemies.clear()
 	m.enemy_bullets.clear()

@@ -1,7 +1,35 @@
-# Space Fighter — Godot 4.7.2 / v1.6.0
+# Space Fighter — Godot 4.7.2 / v1.7.0
 
 Migration of the retired Unity port, using `reference/web/www` (the original
 540x960 Canvas game) as the gameplay and numeric source of truth.
+
+## v1.7.0 endless mode, three-star rating, weather and new icon
+
+Benchmarked against 《像素飞机大战》 (Sky Wings). Four reference features landed:
+
+- **Endless mode**: a segmented control on the main menu switches between
+  campaign (10 zones, final boss) and endless (zones uncapped, all six bosses
+  keep rotating, background palettes repeat every 10 zones). The furthest
+  endless zone persists separately (`best_endless`); the best score stays shared.
+- **Three-star rating**: the results card now shows three stars —
+  1 = survived, 2 = ≥120 kills or ≥40 grazes, 3 = full hull and ≥20000 score.
+  Thresholds live in `CFG.run_stars()`, so the numeric gate asserts them.
+- **Dynamic weather**: zones rotate clear / clear / rain / storm every four
+  sectors. The backdrop draws depth-sorted rain streaks, and storms add a
+  lightning flash every 2.4–5.2 s; weather follows the zone automatically.
+- **New launcher icon** generated with Doubao (Seedream) and converted by
+  `tools/gen_icon_pixel.py` into a pixel-neon trio: the full icon, an adaptive
+  foreground built from the in-game ship sprite plus a magenta glow, and a
+  deep-space neon-grid adaptive background. Used for the desktop window and the
+  Android launcher.
+- Gate `VERIFY_OK checks=191`, `SELFTEST_OK n=10`.
+- Android versionName `1.7.0` / code `25`.
+
+![v1.7.0 menu](docs/shots/ui_v170_menu.png)
+![v1.7.0 endless](docs/shots/ui_v170_endless.png)
+![v1.7.0 weather](docs/shots/ui_v170_weather.png)
+![v1.7.0 results](docs/shots/ui_v170_results.png)
+![v1.7.0 victory](docs/shots/ui_v170_victory.png)
 
 ## v1.6.0 pixel neon art overhaul
 

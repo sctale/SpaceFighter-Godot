@@ -30,7 +30,14 @@ var planet_mat: ShaderMaterial
 var moon_rect: ColorRect
 var moon_mat: ShaderMaterial
 var stars: Array = []
+var rain: Array = []
 var use_shader := true
+
+# 动态天气（参考《像素飞机大战》的云/闪电/雷雨）：clear / rain / storm
+var weather := "clear"
+var _weather_mix := 0.0
+var _flash := 0.0
+var _flash_cd := 2.6
 
 var _time := 0.0
 var _scroll := 0.0
@@ -94,9 +101,33 @@ func _ready() -> void:
 	moon_rect.material = moon_mat
 	add_child(moon_rect)
 	_init_stars()
+	_init_rain()
 	_resize()
 	_apply_palette(0, true)
 	get_viewport().size_changed.connect(_resize)
+
+
+## 天候切换：rain=雨丝，storm=雨丝+闪电白光。由 Main 按星区调用。
+func set_weather(w: String) -> void:
+	if w == weather:
+		return
+	weather = w
+	if weather == "clear":
+		_flash = 0.0
+	else:
+		_flash_cd = 1.2
+
+
+func _init_rain() -> void:
+	rain.clear()
+	for i in range(84):
+		rain.append({
+			"u": _rng.randf(),
+			"v": _rng.randf(),
+			"speed": _rng.randf_range(0.55, 1.35),
+			"len": _rng.randf_range(12.0, 30.0),
+			"alpha": _rng.randf_range(0.16, 0.44),
+		})
 
 
 func _resize() -> void:
@@ -161,12 +192,31 @@ func _process(delta: float) -> void:
 		if float(s["v"]) > 1.02:
 			s["v"] = -0.02
 			s["u"] = _rng.randf()
-	# 星区调色板平滑过渡
+	# 天气：雨丝下落、雷暴间歇闪光
+	var wet := 1.0 if weather != "clear" else 0.0
+	_weather_mix = lerpf(_weather_mix, wet, 1.0 - exp(-1.6 * delta))
+	if _weather_mix > 0.01:
+		for d in rain:
+			d["v"] = float(d["v"]) + delta * float(d["speed"]) * 0.85
+			if float(d["v"]) > 1.03:
+				d["v"] = -0.03
+				d["u"] = _rng.randf()
+	if weather == "storm":
+		_flash_cd -= delta
+		if _flash_cd <= 0.0:
+			_flash = 1.0
+			_flash_cd = _rng.randf_range(2.4, 5.2)
+	_flash = maxf(0.0, _flash - delta * 3.4)
+	# 星区调色板平滑过渡；无尽模式星区超过 10 后循环调色板
 	if main != null and not menu:
-		var zone := clampf(float(main.get("zone")), 1.0, 10.0)
-		var idx: int = ZONE_PALETTE[int(zone) - 1]
+		var idx: int = ZONE_PALETTE[(maxi(1, int(main.get("zone"))) - 1) % 10]
 		if idx != _palette_i:
 			_apply_palette(idx)
+		var w := String(main.weather_for_zone(int(main.get("zone"))))
+		if w != weather:
+			set_weather(w)
+	elif menu:
+		set_weather("clear")
 	for key in _target:
 		_colors[key] = Color(_colors[key]).lerp(Color(_target[key]), 1.0 - exp(-1.8 * delta))
 	_upload_colors()
@@ -225,6 +275,20 @@ func _draw() -> void:
 		_draw_stars()
 	if menu:
 		_draw_planet_ring(Vector2(view_size.x * 0.88, view_size.y * 0.105), minf(view_size.x * 0.19, 108.0), 0.22)
+	_draw_weather()
+
+
+## 雨丝与雷暴闪光：像素风短线段，风暴时追加一次全屏白光。
+func _draw_weather() -> void:
+	if _weather_mix <= 0.01:
+		return
+	var tint := 0.80 if weather == "storm" else 0.60
+	for d in rain:
+		var p := Vector2(float(d["u"]) * view_size.x, float(d["v"]) * view_size.y)
+		var l := float(d["len"]) * _weather_mix
+		draw_line(p, p + Vector2(-l * 0.34, l), Color(0.72, 0.86, 1.0, float(d["alpha"]) * tint), 1.0)
+	if _flash > 0.0:
+		draw_rect(Rect2(Vector2.ZERO, view_size), Color(0.86, 0.92, 1.0, _flash * 0.30))
 
 
 func _draw_gradient_fallback(menu: bool) -> void:

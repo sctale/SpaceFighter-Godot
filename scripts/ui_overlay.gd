@@ -151,11 +151,11 @@ func press(p: Vector2) -> String:
 			return ""
 		for k in menu_buttons:
 			if Rect2(menu_buttons[k]).has_point(p):
-				if String(k) == "start":
-					return _flash_action("start")
-				if String(k) == "settings":
-					return _flash_action("settings")
-				return _flash_action("diff_" + String(k))
+				var key := String(k)
+				if key == "start" or key == "settings" \
+						or key == "mode_campaign" or key == "mode_endless":
+					return _flash_action(key)
+				return _flash_action("diff_" + key)
 		return ""
 	if bool(main.game_over):
 		for k in over_buttons:
@@ -329,28 +329,36 @@ func _draw_results(vw: float, vh: float, st: float, sb: float, flash: String) ->
 		"C":
 			tint = skin.VIOLET
 	var won: bool = bool(main.won)
+	var endless: bool = String(main.mode) == "endless"
 	skin.text_center(self, vw * 0.5, card.position.y + 52.0,
-		"巡航完成" if won else "巡航终止", 32,
+		"巡航完成" if won else ("无尽终止" if endless else "巡航终止"), 32,
 		skin.GOLD_DEEP if won else skin.PINK_DEEP, 0)
 	skin.text_center(self, vw * 0.5, card.position.y + 74.0,
 		"裂隙尽头 · 你带着信号回来了" if won else "信号消失在裂隙深处", 11, skin.INK_SOFT, 0)
-	# 评级星章
-	var gc := Vector2(vw * 0.5, card.position.y + 142.0)
-	skin.icon_burst(self, gc, 56.0, Color(tint.r, tint.g, tint.b, 0.18), 10)
-	skin.icon_burst(self, gc, 47.0, tint, 10)
-	skin.text_center(self, gc.x, gc.y + 20.0, grade, 48, skin.BG_PRIMARY, 0)
-	skin.text_center(self, gc.x, gc.y + 44.0, "评级", 9, skin.INK_SOFT, 0)
+	# 三星评级（参考《像素飞机大战》）：1=活下来；2=击杀/擦弹达标；3=满船体且分数达标
+	var star_y := card.position.y + 150.0
+	for i in range(3):
+		var sp := Vector2(vw * 0.5 + (i - 1) * 62.0, star_y)
+		if i < int(main.stars):
+			skin.glow(self, sp, 30.0, skin.GOLD, 5, 0.20)
+			skin.icon_star(self, sp, 21.0, skin.GOLD)
+		else:
+			skin.icon_star(self, sp, 21.0,
+				Color(skin.INK_SOFT.r, skin.INK_SOFT.g, skin.INK_SOFT.b, 0.28))
+	skin.text_center(self, vw * 0.5, star_y + 42.0, "评级 %s" % grade, 13, tint, 0)
 	skin.text_center(self, vw * 0.5, card.position.y + 228.0, "%d" % int(main.score), 44, skin.INK, 0)
 	skin.text_center(self, vw * 0.5, card.position.y + 248.0, "得分", 10, skin.INK_SOFT, 0)
 	if int(main.score) >= int(main.best_score) and int(main.score) > 0:
 		var rr := Rect2(vw * 0.5 - 74.0, card.position.y + 258.0, 148.0, 24.0)
 		skin.panel(self, rr, skin.GOLD, 8.0, skin.BORDER, 2.0, false)
 		skin.text_center(self, vw * 0.5, rr.position.y + 17.0, "新纪录", 11, skin.BG_PRIMARY, 0)
+	var zn: String = String(UIMenu.ZONE_NAMES[clampi((int(main.zone) - 1) % 10, 0, 9)])
 	var rows := [
-		["最远星区", "%02d  %s" % [int(main.zone), UIMenu.ZONE_NAMES[clampi(int(main.zone) - 1, 0, 9)]]],
+		["最远星区", "%02d  %s" % [int(main.zone), zn]],
 		["击坠", "%d" % int(main.total_kills)],
 		["擦弹 / 裂隙", "%d / %d" % [int(main.graze), int(main.rift)]],
-		["最高分", "%d" % int(main.best_score)],
+		["无尽纪录" if endless else "最高分",
+			"%02d 区" % int(main.best_endless) if endless else "%d" % int(main.best_score)],
 	]
 	for i in range(4):
 		var rr := Rect2(card.position.x + 26.0, card.position.y + 296.0 + i * 40.0, w - 52.0, 32.0)
@@ -377,7 +385,7 @@ func _draw_banners(vw: float, vh: float, st: float) -> void:
 		draw_rect(Rect2(0, y - 54.0, vw, 3), Color(skin.WHITE.r, skin.WHITE.g, skin.WHITE.b, 0.35 * a))
 		draw_rect(Rect2(0, y + 51.0, vw, 3), Color(skin.WHITE.r, skin.WHITE.g, skin.WHITE.b, 0.35 * a))
 		skin.text_center(self, vw * 0.5, y - 8.0, "星区 %02d" % _banner_zone, 12, Color(skin.WHITE.r, skin.WHITE.g, skin.WHITE.b, a), 0)
-		skin.text_center(self, vw * 0.5, y + 32.0, UIMenu.ZONE_NAMES[clampi(_banner_zone - 1, 0, 9)],
+		skin.text_center(self, vw * 0.5, y + 32.0, UIMenu.ZONE_NAMES[clampi((_banner_zone - 1) % 10, 0, 9)],
 			34, Color(skin.WHITE.r, skin.WHITE.g, skin.WHITE.b, a), 3)
 	if _warning_t > 0.0:
 		var a := clampf(_warning_t / 0.5, 0.0, 1.0)

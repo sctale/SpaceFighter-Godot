@@ -128,6 +128,10 @@ var won := false
 var paused := false
 var game_over_time := 0.0
 var difficulty := "standard"
+# 模式：campaign=10 星区巡航；endless=无尽（星区不封顶，比最远星区）
+var mode := "campaign"
+var best_endless := 0
+var stars := 0
 
 var player_bullets: Array = []
 var enemy_bullets: Array = []
@@ -256,6 +260,7 @@ func _ready() -> void:
 			graze = 132
 			rift = 48
 			total_kills = 260
+			stars = 3
 			_save_best()
 		elif _shot_mode == "demo":
 			_demo_no_fire = true
@@ -309,6 +314,15 @@ func _ready() -> void:
 		elif _shot_mode == "settings":
 			in_menu = true
 			settings_open = true
+		elif _shot_mode == "endless_menu":
+			# 无尽模式主菜单（验证模式胶囊选中态与无尽最远纪录）
+			mode = "endless"
+			in_menu = true
+		elif _shot_mode == "weather":
+			# 雷暴天候（第 4 星区）：雨丝 + 闪电
+			in_menu = false
+			_reset_game()
+			zone = 4
 		_shot_taken = false
 
 
@@ -380,6 +394,7 @@ func _load_best() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load("user://save.cfg") == OK:
 		best_score = int(cfg.get_value("score", "best", 0))
+		best_endless = int(cfg.get_value("score", "best_endless", 0))
 		opt_music = bool(cfg.get_value("opt", "music", true))
 		opt_sfx = bool(cfg.get_value("opt", "sfx", true))
 		opt_shake = bool(cfg.get_value("opt", "shake", true))
@@ -406,14 +421,29 @@ func _apply_opts() -> void:
 
 
 func _save_best() -> void:
-	if score <= best_score:
-		return
-	best_score = score
+	# 无尽模式单独记最远星区与最高分，不污染巡航纪录
+	if mode == "endless":
+		if zone <= best_endless and score <= best_score:
+			return
+		best_endless = maxi(best_endless, zone)
+		best_score = maxi(best_score, score)
+	else:
+		if score <= best_score:
+			return
+		best_score = score
 	# A1 修复：先 load 再合并写回，避免新 ConfigFile 直接 save 抹掉 [opt] 偏好。
 	var cfg := ConfigFile.new()
 	cfg.load("user://save.cfg")
 	cfg.set_value("score", "best", best_score)
+	cfg.set_value("score", "best_endless", best_endless)
 	cfg.save("user://save.cfg")
+
+
+## 结算评星（参考《像素飞机大战》的三星评级）：
+## 1 星=活下来；2 星=击杀或擦弹达标；3 星=不掉船体且分数达标。
+func run_stars() -> int:
+	return CFG.run_stars(player_lives, int(upgrades.get("max_hull", 3)),
+		total_kills, graze, score)
 
 
 ## 行为自检：确保判定不是"击杀帧才结算"的回归版本。
@@ -562,8 +592,32 @@ func _run_selftest() -> void:
 		failures += 1
 		print("SELFTEST_FAIL swap_to_best solo")
 
+	# 9) 无尽模式突破后星区不封顶，巡航模式仍封顶第 10 区
+	mode = "endless"
+	_reset_game()
+	zone = 10
+	upgrade_pending = true
+	upgrade_options = [CFG.UPGRADE_POOL[0]]
+	upgrade_flow.choose(0)
+	var endless_ok := zone == 11
+	mode = "campaign"
+	_reset_game()
+	zone = 10
+	upgrade_pending = true
+	upgrade_options = [CFG.UPGRADE_POOL[0]]
+	upgrade_flow.choose(0)
+	if not endless_ok or zone != 10:
+		failures += 1
+		print("SELFTEST_FAIL endless zone endless=%s campaign=%d" % [str(endless_ok), zone])
+
+	# 10) 天候按 4 星区轮换、三星评级阈值
+	if weather_for_zone(4) != "storm" or CFG.run_stars(3, 3, 120, 40, 20000) != 3 \
+			or CFG.run_stars(1, 3, 0, 0, 0) != 1:
+		failures += 1
+		print("SELFTEST_FAIL weather/stars")
+
 	if failures == 0:
-		print("SELFTEST_OK n=8")
+		print("SELFTEST_OK n=10")
 	else:
 		print("SELFTEST_FAIL n=%d" % failures)
 	get_tree().quit(0 if failures == 0 else 1)
@@ -625,6 +679,7 @@ func _process(delta: float) -> void:
 			rift = 32
 			total_kills = 120
 			best_score = 60000
+			stars = 2
 		if _shot_mode == "hurt" and _shot_t > wait - 0.3:
 			hurt_flash = 0.7
 			shield_flash = 0.6
@@ -976,10 +1031,11 @@ func _update_enemies(delta: float) -> void:
 
 func _start_boss() -> void:
 	boss = Boss.new()
-	# 六台 Boss 按星区轮换（第 7 星区起回到第 1 台）
-	var boss_index: int = 5 if CFG.is_final_zone(int(zone)) else (int(zone) - 1) % 6
+	# 六台 Boss 按星区轮换（第 7 星区起回到第 1 台）；无尽模式超过第 10 区也继续轮换
+	var final := CFG.is_final_zone(int(zone)) and mode == "campaign"
+	var boss_index: int = 5 if final else (int(zone) - 1) % 6
 	boss.setup(boss_index, zone, waves.density_tier(), CFG.DIFFICULTY[difficulty])
-	if CFG.is_final_zone(int(zone)):
+	if final:
 		# 终局：裁决者额外 20% 血量，作为整局的收束
 		boss.max_hp *= 1.2
 		boss.hp = boss.max_hp
@@ -1074,11 +1130,12 @@ func _update_boss(delta: float) -> void:
 		boss_cleared = true
 		waves.zone_kills = 0
 		enemy_bullets.clear()
-		if CFG.is_final_zone(int(zone)):
+		if CFG.is_final_zone(int(zone)) and mode == "campaign":
 			# 第 10 区终局击破 → 巡航完成（不再无限循环）
 			won = true
 			game_over = true
 			game_over_time = 0.0
+			stars = run_stars()
 			_save_best()
 			sfx.play_nova()
 		else:
@@ -1666,6 +1723,10 @@ func _handle_ui_action(action: String) -> bool:
 			difficulty = "standard"
 		"diff_abyss":
 			difficulty = "abyss"
+		"mode_campaign":
+			mode = "campaign"
+		"mode_endless":
+			mode = "endless"
 		"start":
 			_start_run()
 		"settings":
@@ -1731,6 +1792,11 @@ func _start_drag() -> void:
 	drag_offset.y = clampf(player_pos.y - pointer_pos.y, -140.0, 60.0)
 
 
+## 天候：参考《像素飞机大战》的动态天气，每 4 个星区轮换 晴/雨/雷暴。
+func weather_for_zone(z: int) -> String:
+	return CFG.weather_for_zone(z)
+
+
 func _start_run() -> void:
 	_reset_game()
 
@@ -1776,6 +1842,7 @@ func _reset_game() -> void:
 	display_score = 0.0
 	display_boss_hp = 1.0
 	graze = 0
+	stars = 0
 	game_over = false
 	won = false
 	paused = false
@@ -1810,6 +1877,8 @@ func _reset_game() -> void:
 	pity_weapon = 0
 	pity_drone = 0
 	drones.clear()
+	if backdrop != null:
+		backdrop.set_weather(weather_for_zone(1))
 	if music != null:
 		music.play_zone(1)
 		music.set_paused(false)

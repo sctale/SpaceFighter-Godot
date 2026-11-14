@@ -60,6 +60,9 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 	skin.panel(ci, best_rect, skin.CREAM, 16.0, skin.BORDER, 3.0, true)
 	skin.icon_star(ci, best_rect.position + Vector2(28, 27), 11.0, skin.GOLD)
 	skin.text(ci, best_rect.position + Vector2(48, 35), "最高分", 14, skin.INK_SOFT)
+	if String(main.mode) == "endless":
+		skin.text(ci, best_rect.position + Vector2(48, 48),
+			"无尽最远 %02d 区" % int(main.best_endless), 9, skin.INK_SOFT)
 	skin.text_right(ci, best_rect.end.x - 18.0, best_rect.position.y + 37.0,
 		"%d" % int(main.best_score), 24, skin.INK)
 
@@ -93,13 +96,36 @@ static func draw(ci: CanvasItem, skin: UISkin, main: Node, vw: float, vh: float,
 		skin.text_center(ci, r.position.x + r.size.x * 0.58, r.position.y + 49.0,
 			["EASY", "NORMAL", "ABYSS"][i], 8, Color(1, 1, 1, 0.55) if on else skin.INK_SOFT, 0)
 
+	# 模式：巡航（10 星区通关）/ 无尽（星区不封顶，参考《像素飞机大战》的无尽关卡）
+	var mode_y := diff_y - 26.0
+	var m_gap := 10.0
+	var m_w := (w - m_gap) * 0.5
+	var modes := [
+		["mode_campaign", "巡航模式", "10 星区通关", skin.CYAN],
+		["mode_endless", "无尽模式", "星区不封顶", skin.PINK],
+	]
+	for i in range(2):
+		var r := Rect2(cx - w * 0.5 + i * (m_w + m_gap), mode_y, m_w, 42.0)
+		rects[modes[i][0]] = r
+		var on: bool = String(main.mode) == ("campaign" if i == 0 else "endless")
+		var tint: Color = modes[i][3]
+		skin.panel(ci, r, tint if on else skin.PAPER, 14.0, skin.BORDER, 3.0, not on)
+		if on:
+			ci.draw_rect(Rect2(r.position + Vector2(14, 6), Vector2(r.size.x - 28, 3)),
+				Color(1, 1, 1, 0.35))
+		skin.text_center(ci, r.get_center().x, r.position.y + 20.0, modes[i][1], 15,
+			Color(1, 1, 1, 0.95) if on else skin.INK, 0)
+		skin.text_center(ci, r.get_center().x, r.position.y + 35.0, modes[i][2], 9,
+			Color(1, 1, 1, 0.60) if on else skin.INK_SOFT, 0)
+
 	# 出发按钮
-	var start_rect := Rect2(cx - w * 0.5, start_y - 112.0, w, 76.0)
+	var start_rect := Rect2(cx - w * 0.5, start_y - 66.0, w, 76.0)
 	rects["start"] = start_rect
 	var pulse := 0.5 + 0.5 * sin(t * 2.2)
 	skin.panel(ci, start_rect.grow(6.0 + pulse * 3.0), Color(skin.PINK.r, skin.PINK.g, skin.PINK.b, 0.10),
 		22.0, Color(0, 0, 0, 0), 0.0, false)
-	skin.button(ci, start_rect, "开始巡航", skin.PINK, false, 30, skin.WHITE)
+	skin.button(ci, start_rect, "开始无尽" if String(main.mode) == "endless" else "开始巡航",
+		skin.PINK, false, 30, skin.WHITE)
 	# 斜向扫光：只在按钮内部移动，不越出圆角
 	var shimmer := fmod(t * 72.0, maxf(1.0, start_rect.size.x - 56.0))
 	for i in range(3):

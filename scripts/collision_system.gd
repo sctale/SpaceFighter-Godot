@@ -193,6 +193,7 @@ func player_hit() -> void:
 	if m.player_lives <= 0:
 		m.game_over = true
 		m.game_over_time = 0.0
+		m.stars = m.run_stars()
 		# 死亡立即关闭突破草稿，避免结算被三选一卡片挡住
 		m.upgrade_pending = false
 		m.upgrade_options.clear()

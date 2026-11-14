@@ -520,6 +520,30 @@ static func is_final_zone(zone: int) -> bool:
 	return zone >= 10
 
 
+## 动态天气：每 4 星区轮换 晴/晴/雨/雷暴（参考《像素飞机大战》）。
+static func weather_for_zone(zone: int) -> String:
+	var m := (maxi(1, zone) - 1) % 4
+	if m == 3:
+		return "storm"
+	if m == 2:
+		return "rain"
+	return "clear"
+
+
+## 三星评级（参考《像素飞机大战》）：2 星需击杀/擦弹达标，3 星需满船体且分数达标。
+const STAR2_KILLS := 120
+const STAR2_GRAZE := 40
+const STAR3_SCORE := 20000
+
+static func run_stars(lives: int, max_hull: int, kills: int, graze: int, score: int) -> int:
+	var star := 1
+	if kills >= STAR2_KILLS or graze >= STAR2_GRAZE:
+		star = 2
+	if lives >= max_hull and score >= STAR3_SCORE:
+		star = 3
+	return star
+
+
 static func enemy_hp_scale(sector: int) -> float:
 	return 1.0 + maxf(0, sector - 1) * ENEMY_HP_PER_SECTOR
 

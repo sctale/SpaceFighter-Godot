@@ -240,6 +240,19 @@ func _initialize() -> void:
 	_eq(failures, "beh.ws.swapSoloFalse", ws2.swap_to_best(30.0), false)
 	_eq(failures, "beh.ws.swapSoloRecharge", ws2.active().charge, 55.0)
 
+	# ---- v1.7.0：动态天候轮换 + 三星评级阈值（参考《像素飞机大战》）----
+	_eq(failures, "beh.weather.z1", CFG.weather_for_zone(1), "clear")
+	_eq(failures, "beh.weather.z3", CFG.weather_for_zone(3), "rain")
+	_eq(failures, "beh.weather.z4", CFG.weather_for_zone(4), "storm")
+	_eq(failures, "beh.weather.z5", CFG.weather_for_zone(5), "clear")
+	_eq(failures, "beh.weather.z22Cycle", CFG.weather_for_zone(22), "clear")
+	_eq(failures, "beh.stars.survive", CFG.run_stars(1, 3, 10, 0, 100), 1)
+	_eq(failures, "beh.stars.kills", CFG.run_stars(1, 3, 120, 0, 100), 2)
+	_eq(failures, "beh.stars.graze", CFG.run_stars(1, 3, 0, 40, 100), 2)
+	_eq(failures, "beh.stars.fullHull", CFG.run_stars(3, 3, 120, 40, 20000), 3)
+	_eq(failures, "beh.stars.lowHull", CFG.run_stars(2, 3, 120, 40, 20000), 2)
+	_eq(failures, "beh.stars.lowScore", CFG.run_stars(3, 3, 120, 40, 19999), 2)
+
 	if failures.is_empty():
 		print("VERIFY_OK checks=%d" % checks)
 		quit(0)
