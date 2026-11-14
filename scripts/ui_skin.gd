@@ -5,11 +5,12 @@ extends RefCounted
 ## Token 取自《UI 全面重构实施方案》；旧常量名保留为语义别名，调用方无需改名。
 ## 所有控件用 StyleBoxFlat 绘制，圆角/描边/投影一次缓存，避免每帧新建资源。
 
-# ---- Design Tokens（3D 像素块 · 参考《像素飞机大战》）----
-const BG_PRIMARY := Color("#1A060C")   # 暗红主背景
-const BG_PANEL := Color("#2A0B12")     # 面板底
-const BG_CARD := Color("#3A121A")      # 卡片/次级面板底
-const ACCENT_BLUE := Color("#E8453C")  # 主高亮（出发/选中/武器）→ 樱桃红
+# ---- Design Tokens（3D 像素块 · 参考《像素飞机大战/Sky Wings》）----
+# 参考作风格：深紫海军蓝底 + 品红/青色双高亮 + 金黄按钮 + 发光弹幕。
+const BG_PRIMARY := Color("#0D0A1A")   # 深紫海军蓝主背景
+const BG_PANEL := Color("#1A1430")     # 面板底（深紫）
+const BG_CARD := Color("#251D45")      # 卡片/次级面板底
+const ACCENT_BLUE := Color("#E83D8B")  # 主高亮（出发/选中/武器）→ 品红
 const ACCENT_CYAN := Color("#4FD8E4")  # 次高亮（冲刺/护盾/进度）→ 天空青
 const COLOR_GOLD := Color("#FFC637")   # 奖励/连击/星爆
 const COLOR_DANGER := Color("#FF5A4D") # 警示/失谐/危险
@@ -17,9 +18,9 @@ const WARNING_BG := Color(0.23, 0.04, 0.05)  # Boss 预警横幅底（暗红）
 const WARNING_TINT := Color(1.0, 0.69, 0.23)  # 预警箭头/强调
 const WARNING_TEXT := Color(1.0, 0.95, 0.84)  # 预警副文字
 const TEXT_PRIMARY := Color("#FFF3D6") # 主文字（奶油白）
-const TEXT_SECONDARY := Color("#E0B49A") # 次文字（暖灰）
-const BORDER := Color("#7A2A2A")       # 面板描边（暗红铜）
-const BORDER_SOFT := Color("#4A1A20")  # 弱描边/分隔
+const TEXT_SECONDARY := Color("#B8A8D8") # 次文字（紫灰）
+const BORDER := Color("#5A3A8A")       # 面板描边（紫铜）
+const BORDER_SOFT := Color("#3A2A5A")  # 弱描边/分隔
 
 # ---- Design Tokens（字号阶梯，逐屏阶段逐步采用）----
 const TEXT_XS := 9
@@ -47,7 +48,7 @@ const PAPER := BG_PANEL              # 面板底
 const CREAM := BG_CARD               # 卡片底
 const WHITE := Color("#FFFFFF")
 const PINK := ACCENT_BLUE            # 主高亮
-const PINK_DEEP := Color("#FF7A45")  # 亮橙（标题/Boss 血条，暗底可读）
+const PINK_DEEP := Color("#FF6B9D")  # 亮粉（标题/Boss 血条，暗底可读）
 const CYAN := ACCENT_CYAN
 const CYAN_DEEP := Color("#2E9BA8")
 const GOLD := COLOR_GOLD

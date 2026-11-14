@@ -1,7 +1,27 @@
-# Space Fighter — Godot 4.7.2 / v1.10.0
+# Space Fighter — Godot 4.7.2 / v1.11.0
 
 Migration of the retired Unity port, using `reference/web/www` (the original
 540x960 Canvas game) as the gameplay and numeric source of truth.
+
+## v1.11.0 art palette aligned to Sky Wings + expanded settings
+
+Reference: 《像素飞机大战》 (Sky Wings) APK at `reference/像素飞机大战.apk`.
+UnityPy extracts 531 textures + 566 sprites for style analysis only; no assets copied.
+
+- **Palette aligned**: deep navy-purple background (`#0D0A1A`), magenta primary
+  accent (`#E83D8B`), cyan secondary, gold rewards, purple-copper borders.
+  All menus / HUD / pause / settings switch together via `scripts/ui_skin.gd`.
+- **Settings expanded** from 3 to 6 toggles: Music, SFX, Screen shake,
+  **Vibration** (`OS.vibrate_handheld` with `has_method` guard),
+  **Language** (中文/English), **Sensitivity** (0.6/1.0/1.5 applied to drag
+  follow rate). All persisted to `user://save.cfg`; pause menu quick toggles
+  include vibration too.
+- Gate `VERIFY_OK checks=209`, `SELFTEST_OK n=12`, logcat clean.
+- Android versionName `1.11.0` / code `29`; Windows FileVersion `1.11.0.0`.
+
+![v1.11.0 menu](docs/shots/android_v1110_menu.png)
+![v1.11.0 settings](docs/shots/android_v1110_settings.png)
+![v1.11.0 play](docs/shots/android_v1110_play.png)
 
 ## v1.10.0 wingman formation and a livelier soundtrack
 

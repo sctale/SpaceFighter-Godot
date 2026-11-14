@@ -158,6 +158,9 @@ var is_mobile := false
 var opt_music := true
 var opt_sfx := true
 var opt_shake := true
+var opt_vibration := true
+var opt_language := "zh"  # zh / en
+var opt_sensitivity := 1.0  # 0.6 低 / 1.0 中 / 1.5 高
 var confirm_action := ""
 var confirm_t := 0.0
 
@@ -419,6 +422,9 @@ func _load_best() -> void:
 		opt_music = bool(cfg.get_value("opt", "music", true))
 		opt_sfx = bool(cfg.get_value("opt", "sfx", true))
 		opt_shake = bool(cfg.get_value("opt", "shake", true))
+		opt_vibration = bool(cfg.get_value("opt", "vibration", true))
+		opt_language = String(cfg.get_value("opt", "language", "zh"))
+		opt_sensitivity = float(cfg.get_value("opt", "sensitivity", 1.0))
 	_apply_opts()
 
 
@@ -429,6 +435,9 @@ func _save_opts() -> void:
 	cfg.set_value("opt", "music", opt_music)
 	cfg.set_value("opt", "sfx", opt_sfx)
 	cfg.set_value("opt", "shake", opt_shake)
+	cfg.set_value("opt", "vibration", opt_vibration)
+	cfg.set_value("opt", "language", opt_language)
+	cfg.set_value("opt", "sensitivity", opt_sensitivity)
 	cfg.save("user://save.cfg")
 
 
@@ -802,10 +811,11 @@ func _process(delta: float) -> void:
 
 
 func _add_shake(amount: float, duration := 0.24) -> void:
-	if not opt_shake:
-		return
-	shake = maxf(shake, amount)
-	shake_t = maxf(shake_t, duration)
+	if opt_shake:
+		shake = maxf(shake, amount)
+		shake_t = maxf(shake_t, duration)
+	if opt_vibration and amount > 2.0 and OS.has_method("vibrate_handheld"):
+		OS.call("vibrate_handheld", int(amount * 12.0))
 
 
 func _shake_offset() -> Vector2:
@@ -849,7 +859,7 @@ func _update_player(delta: float) -> void:
 			player_last_dir = dir.x
 		elif pointer_active:
 			var target := pointer_pos + drag_offset
-			var k := 1.0 - exp(-CFG.DRAG_FOLLOW_RATE * delta)
+			var k := 1.0 - exp(-CFG.DRAG_FOLLOW_RATE * opt_sensitivity * delta)
 			player_pos = player_pos.lerp(target, k)
 			player_last_dir = clampf((target.x - player_pos.x) * 0.02, -1.0, 1.0)
 
@@ -1835,6 +1845,20 @@ func _handle_ui_action(action: String) -> bool:
 			_save_opts()
 		"opt_shake":
 			opt_shake = not opt_shake
+			_save_opts()
+		"opt_vibration":
+			opt_vibration = not opt_vibration
+			if opt_vibration and OS.has_method("vibrate_handheld"):
+				OS.call("vibrate_handheld", 80)
+			_save_opts()
+		"opt_language":
+			opt_language = "en" if opt_language == "zh" else "zh"
+			_save_opts()
+		"opt_sensitivity":
+			var levels := [0.6, 1.0, 1.5]
+			var idx := levels.find(opt_sensitivity)
+			idx = (idx + 1) % levels.size()
+			opt_sensitivity = levels[idx]
 			_save_opts()
 		_:
 			return false

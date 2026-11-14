@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.11.0 — 2026-11-14
+
+**feat / 画风调色板对齐参考作 + 设置菜单扩展（震动/语言/灵敏度）**
+
+- **调色板对齐**：参考《像素飞机大战/Sky Wings》的深紫海军蓝底 + 品红/青色
+  双高亮风格，将 `ui_skin.gd` 的 `BG_PRIMARY` 从暗红 `#1A060C` 改为深紫
+  `#0D0A1A`、`BG_PANEL` 改为 `#1A1430`、`ACCENT_BLUE` 主高亮从樱桃红
+  改为品红 `#E83D8B`、`BORDER` 从暗红铜改为紫铜 `#5A3A8A`、
+  `PINK_DEEP` 改为亮粉 `#FF6B9D`。菜单/设置/HUD/暂停全部统一切换。
+- **设置扩展**：原 3 项（音乐/音效/震屏）扩到 6 项，新增：
+  - **震动**：受击与爆炸时调用 `OS.vibrate_handheld`（有 `has_method` 守卫，
+    桌面端自动跳过）。
+  - **语言**：中文 / English 切换。
+  - **灵敏度**：低 0.6 / 中 1.0 / 高 1.5，作用于拖动跟随率。
+  全部持久化到 `user://save.cfg`；暂停页快捷开关同步加震动项。
+- **参考分析**：从 `reference/像素飞机大战.apk` 用 UnityPy 提取 531 张贴图 +
+  566 个 Sprite，确认参考作为「3D 像素飞机 + 发光弹幕 + 深色底 + 鲜艳配色」
+  风格；仅作风格分析，未复制任何资源。
+- 验证：`VERIFY_OK checks=209`、`SELFTEST_OK n=12`；logcat 无 SCRIPT ERROR；
+  桌面 + Android 菜单/设置/战斗截图。
+- Android versionName `1.11.0` / code `29`；Windows FileVersion `1.11.0.0`。
+
 ## 1.10.0 — 2026-11-14
 
 **feat / 三僚机编队重构 + 10 段星区 BGM 全部重写**

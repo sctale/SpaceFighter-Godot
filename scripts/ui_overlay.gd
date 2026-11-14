@@ -296,19 +296,20 @@ func _draw_pause(vw: float, vh: float, st: float, sb: float, flash: String) -> v
 	skin.button(self, pause_buttons["menu"],
 		"确认返回主菜单？" if ca == "menu" else "返回主菜单",
 		skin.GOLD if ca == "menu" else skin.PAPER, flash == "menu", 22, skin.INK)
-	# 设置开关：音乐 / 音效 / 震屏（持久化）
+	# 设置开关：音乐 / 音效 / 震屏 / 震动（持久化）
 	var sy := by + (bh + gap) * 2.0 + bh + 16.0
-	var tw := (bw - 16.0) / 3.0
+	var tw := (bw - 24.0) / 4.0
 	var opts := [["opt_music", "音乐", bool(main.opt_music)],
 		["opt_sfx", "音效", bool(main.opt_sfx)],
-		["opt_shake", "震屏", bool(main.opt_shake)]]
-	for i in range(3):
+		["opt_shake", "震屏", bool(main.opt_shake)],
+		["opt_vibration", "震动", bool(main.opt_vibration)]]
+	for i in range(4):
 		var r := Rect2(card.position.x + 28.0 + i * (tw + 8.0), sy, tw, 40.0)
 		pause_buttons[String(opts[i][0])] = r
 		var on: bool = opts[i][2]
 		skin.panel(self, r, skin.CYAN if on else skin.CREAM, 10.0, skin.BORDER, 2.0, false)
 		skin.text_center(self, r.position.x + r.size.x * 0.5, r.position.y + 26.0,
-			"%s %s" % [opts[i][1], "开" if on else "关"], 13, skin.BG_PRIMARY if on else skin.INK, 0)
+			"%s %s" % [opts[i][1], "开" if on else "关"], 12, skin.BG_PRIMARY if on else skin.INK, 0)
 	skin.text_center(self, vw * 0.5, card.end.y - 16.0,
 		"点按按钮继续" if bool(main.is_mobile) else "也可以按 P / Esc 继续", 11, skin.INK_SOFT, 0)
 
