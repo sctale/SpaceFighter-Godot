@@ -1,7 +1,27 @@
-# Space Fighter — Godot 4.7.2 / v1.11.1
+# Space Fighter — Godot 4.7.2 / v1.12.0
 
 Migration of the retired Unity port, using `reference/web/www` (the original
 540x960 Canvas game) as the gameplay and numeric source of truth.
+
+## v1.12.0 four drones, and the aegis drone now shoots
+
+- **Fixed aegis drone not firing**: drone kinds are assigned
+  `gunner → lance → aegis → swarm`, so the third drone is always the aegis
+  point-defence unit. Its branch cleared enemy bullets and then `continue`d,
+  never spawning a shot — it looked like "the third drone never attacks".
+  It now fires a normal drone bullet every `AEGIS_PD_INTERVAL` (0.5 s) while
+  keeping its point-defence sweep.
+- **Drone cap raised 3 → 4** with a new `DRONE_SLOTS_4`: shallow-V line —
+  wings `(-104,0)/(104,0)` plus inner `(-52,6)/(52,6)`. The player's lowest
+  point is 104 px above the screen bottom while the HUD cards occupy the
+  bottom 86 px, so every slot keeps `y <= 9` and never covers the HUD.
+  All slots keep `|x| >= 42` to clear the engine flame and the bullet column.
+- Gate adds slot symmetry / flame-clearance / on-screen / HUD-clearance
+  assertions; self-test gains a 13th case that each of the four drones
+  (aegis included) must spawn at least one bullet.
+- `VERIFY_OK checks=225`, `SELFTEST_OK n=13`.
+- Android versionName `1.12.0` / code `31`; Windows FileVersion `1.12.0.0`
+  (the EXE is built locally only and is no longer uploaded to GitHub).
 
 ## v1.11.1 one drop per enemy
 

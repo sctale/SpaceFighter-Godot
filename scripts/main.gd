@@ -333,10 +333,10 @@ func _ready() -> void:
 			player_shields = 3
 			player_pos.y -= 150.0
 		elif _shot_mode == "drones":
-			# v1.10.0：三僚机编队验收（确认不遮挡尾焰与子弹中列）
+			# v1.12.0：四僚机编队验收（确认不遮挡尾焰与子弹中列）
 			in_menu = false
 			_reset_game()
-			for i in range(3):
+			for i in range(CFG.MAX_DRONES):
 				_add_drone()
 			player_shields = 1
 		elif _shot_mode == "depth":
@@ -670,8 +670,24 @@ func _run_selftest() -> void:
 		failures += 1
 		print("SELFTEST_FAIL endless continue %s zone=%d" % [str(cont_ok), zone])
 
+	# 13) 四架僚机都要开火（含 aegis 点防御；此前 aegis 分支直接 continue，
+	#     第三架僚机看起来完全不攻击）
+	_reset_game()
+	while drones.size() < CFG.MAX_DRONES:
+		_add_drone()
+	player_bullets.clear()
+	for i in range(drones.size()):
+		for j in range(drones.size()):
+			drones[j]["timer"] = 999.0 if j != i else 0.0
+		var before := player_bullets.size()
+		_update_drones(0.016)
+		if player_bullets.size() <= before:
+			failures += 1
+			print("SELFTEST_FAIL drone fire idx=%d kind=%s"
+			% [i, String(drones[i]["kind"])])
+
 	if failures == 0:
-		print("SELFTEST_OK n=12")
+		print("SELFTEST_OK n=13")
 	else:
 		print("SELFTEST_FAIL n=%d" % failures)
 	get_tree().quit(0 if failures == 0 else 1)
@@ -1254,6 +1270,8 @@ func _drone_slots_for(count: int) -> Array:
 			return CFG.DRONE_SLOTS_2
 		3:
 			return CFG.DRONE_SLOTS_3
+		4:
+			return CFG.DRONE_SLOTS_4
 	return []
 
 
@@ -1290,6 +1308,9 @@ func _update_drones(delta: float) -> void:
 					cleared += 1
 			if cleared > 0 and fx != null:
 				fx.impact(cur, Color(tint.r, tint.g, tint.b, 0.5), CFG.AEGIS_PD_RADIUS * 2.0, 0.22)
+			# 点防御僚机同时开火：此前该分支直接 continue，第三架僚机看起来完全不攻击
+			player_bullets.append(Bullet.new(cur + Vector2(0, -7), Vector2(lean * 260.0, -1180.0),
+				4.0, maxf(1.0, roundf(dmul)), 1.9, true, tint, "drone"))
 			continue
 		if line_id == "swarm" or kind == "swarm":
 			d["timer"] = 0.86 if kind == "gunner" else 1.02

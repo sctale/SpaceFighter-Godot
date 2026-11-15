@@ -471,7 +471,7 @@ const GRADE_SECTOR_A := 5
 const GRADE_SECTOR_B := 3
 
 # ---- 僚机（entities.js:612-633）----
-const MAX_DRONES := 3
+const MAX_DRONES := 4
 const DRONE_KINDS := ["gunner", "lance", "aegis", "swarm"]
 const DRONE_SLOTS_1 := [Vector2(-64, 8)]
 const DRONE_SLOTS_2 := [Vector2(-64, 8), Vector2(64, 8)]
@@ -480,6 +480,10 @@ const DRONE_SLOTS_2 := [Vector2(-64, 8), Vector2(64, 8)]
 # 同时避开 HUD：左下武器板 x<=230/y>=874、右下冲刺键 x>=356；
 # 也受底部边界限制（player 最低 y=view-104）。
 const DRONE_SLOTS_3 := [Vector2(-84, 2), Vector2(84, 2), Vector2(44, 62)]
+# 四机编队：两翼外扩 + 内侧浅 V（内侧只低 6px）。
+# 玩家最低点距屏幕底 104px，而左下武器板高 86px、右下冲刺键也在同一带；
+# 因此所有槽的 y 必须 <= 9，僚机下缘才不会压到 HUD 面板。
+const DRONE_SLOTS_4 := [Vector2(-104, 0), Vector2(104, 0), Vector2(-52, 6), Vector2(52, 6)]
 const AEGIS_PD_INTERVAL := 0.5
 const AEGIS_PD_RADIUS := 38.0
 const AEGIS_PD_CLEAR_COUNT := 4

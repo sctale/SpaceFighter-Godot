@@ -82,6 +82,9 @@ func _initialize() -> void:
 	# 僚机种类优先补未拥有的（三个挂点凑三种）
 	_eq(failures, "beh.drone.first", CFG.pick_drone_kind([], 0), "gunner")
 	_eq(failures, "beh.drone.second", CFG.pick_drone_kind(["gunner"], 0), "lance")
+	_eq(failures, "beh.drone.third", CFG.pick_drone_kind(["gunner", "lance"], 0), "aegis")
+	_eq(failures, "beh.drone.fourth", CFG.pick_drone_kind(["gunner", "lance", "aegis"], 0), "swarm")
+	_eq(failures, "beh.drone.max", CFG.MAX_DRONES, 4)
 	_eq(failures, "beh.drone.allUsed", CFG.DRONE_KINDS.has(CFG.pick_drone_kind(["gunner", "lance", "aegis", "swarm"], 7)), true)
 	# Boss 出招节奏
 	_eq(failures, "beh.bossCd.p1", CFG.boss_spell_cd(0, 0, 1, false), 0.85)
@@ -210,6 +213,17 @@ func _initialize() -> void:
 	# y 需落在机体下缘之下且仍在玩家最低点（view-104）的可视范围内
 	_eq(failures, "beh.drone.clearFlame", absf(CFG.DRONE_SLOTS_3[2].x) >= 42.0, true)
 	_eq(failures, "beh.drone.onScreen", CFG.DRONE_SLOTS_3[2].y + 18.0 <= 104.0, true)
+	# 四机编队：左右对称、避开尾焰/子弹中列，且整排抬到 HUD 面板之上
+	# （玩家最低点距屏底 104px，武器板/技能键占底部 86px → 槽 y 需 <= 9）
+	_eq(failures, "beh.drone.slots4.symmetry",
+		[CFG.DRONE_SLOTS_4[0].x, CFG.DRONE_SLOTS_4[2].x],
+		[-CFG.DRONE_SLOTS_4[1].x, -CFG.DRONE_SLOTS_4[3].x])
+	for slot in CFG.DRONE_SLOTS_4:
+		var v: Vector2 = slot
+		_eq(failures, "beh.drone.slots4.clearFlame.%d" % int(v.x), absf(v.x) >= 42.0, true)
+		_eq(failures, "beh.drone.slots4.onScreen.%d" % int(v.x), v.y + 18.0 <= 104.0, true)
+		_eq(failures, "beh.drone.slots4.clearHud.%d" % int(v.x),
+			CFG.BOUND_BOTTOM_INSET - (v.y + 9.0) >= 86.0, true)
 	_eq(failures, "beh.drone.cd.aegis", CFG.drone_fire_cd("aegis", "pulse"), 0.5)
 	_eq(failures, "beh.drone.cd.swarmGunner", CFG.drone_fire_cd("gunner", "swarm"), 0.86)
 	_eq(failures, "beh.drone.cd.prismLance", CFG.drone_fire_cd("lance", "prism"), 0.82)
