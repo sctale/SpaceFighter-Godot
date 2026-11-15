@@ -3,6 +3,7 @@ build/*
 !build/.gdignore
 *.apk
 *.aab
+*.exe
 *.tmp
 __pycache__/
 *.pyc

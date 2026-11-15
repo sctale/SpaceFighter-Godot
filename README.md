@@ -23,6 +23,8 @@ Migration of the retired Unity port, using `reference/web/www` (the original
 - Android versionName `1.12.0` / code `31`; Windows FileVersion `1.12.0.0`
   (the EXE is built locally only and is no longer uploaded to GitHub).
 
+![v1.12.0 four drones](docs/shots/ui_v1120_drones.png)
+
 ## v1.11.1 one drop per enemy
 
 - Every kill now yields **at most one pickup**: elite drops a single upgrade

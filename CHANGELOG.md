@@ -1,5 +1,26 @@
 # Changelog
 
+## 仓库整理 — 2026-11-15（无版本变更）
+
+**chore / 目录瘦身：2016 MB → 约 550 MB**
+
+- `build/` 清理（约 1.05 GB）：删除 `verify`…`verify6`（6 份旧 APK 备份）、
+  `shots2`（350 MB 旧截图）、`tmp`（解包/分析临时文件）、`font`（97 MB 字体源包，
+  已提取到 `assets/fonts`）、`AndroidEmulator`/`netsimd` 模拟器残留、
+  `apk_icons*` 旧图标草稿，以及根目录散落的 `desk_*`/`v143_*` 截图、
+  `probe_*.gd`、`*.log`、旧 `release-notes-*.md` 与 `capture*.ps1`。
+  保留 `build/android`、`build/windows`（当前构建）、`build/raw_art*`、
+  `build/art_anime`、`build/ref_art`（美术生成脚本输入）。
+- `docs/shots` 从 261 张历史截图精简到 46 张被 README/CHANGELOG 引用的图
+  （释放 38.5 MB）；新增 `tools/prune_shots.py` 可按引用关系复查清理。
+- 新增 `docs/.gdignore`：文档目录不再被 Godot 扫描，`docs/**` 的 `.import`
+  噪音（46 个）一并移除。
+- 根目录只留当前版 `SpaceFighter-Godot-v1.12.0.apk` / `.exe`；
+  旧版 APK 已从 git 索引移除（Release 仍长期存档），仓库不再跟踪大二进制。
+- `.godot/` 编辑器缓存（412 MB）已清除；重建后 `VERIFY_OK checks=225`
+  （提示：删缓存后需先跑一次 `godot --headless --path . --import` 生成全局类名）。
+- 重新导出校验：APK 35,961,953 B，签名 v2+v3，`1.12.0` / code `31`，未受影响。
+
 ## 1.12.0 — 2026-11-15
 
 **feat / 修复第三架僚机不开火，僚机上限提升到 4 架并重排列位**
