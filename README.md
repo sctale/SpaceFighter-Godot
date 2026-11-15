@@ -20,8 +20,8 @@ Migration of the retired Unity port, using `reference/web/www` (the original
   assertions; self-test gains a 13th case that each of the four drones
   (aegis included) must spawn at least one bullet.
 - `VERIFY_OK checks=225`, `SELFTEST_OK n=13`.
-- Android versionName `1.12.0` / code `31`; Windows FileVersion `1.12.0.0`
-  (the EXE is built locally only and is no longer uploaded to GitHub).
+- Android versionName `1.12.0` / code `31`. The Windows desktop build was
+  discontinued from this version on — Android APK is the only target.
 
 ![v1.12.0 four drones](docs/shots/ui_v1120_drones.png)
 
@@ -427,17 +427,15 @@ Expected: `SELFTEST_OK n=12` and exit code 0.
 
 ## Export
 
-```bash
-# Windows release (embedded PCK)
-godot --headless --path D:\V-Coding\space-fighter-godot \
-  --export-release "Windows Desktop" build/windows/SpaceFighter.exe
+Android only — the Windows desktop build was discontinued in v1.12.0.
 
+```bash
 # Android release APK (requires Android SDK + JDK; Godot auto-detects both)
 godot --headless --path D:\V-Coding\space-fighter-godot \
   --export-release "Android" build/android/SpaceFighter-release.apk
 ```
 
-Both presets use `exclude_filter="reference/*,docs/*,build/*,.trae/*"`, so
+The presets use `exclude_filter="reference/*,docs/*,build/*,.trae/*"`, so
 screenshots and build artifacts never enter the shipped packs. The APK is
 signed with the project keystore in `keystore/` (gitignored); verify with
 `apksigner verify --verbose`.
