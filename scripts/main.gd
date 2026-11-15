@@ -1411,18 +1411,15 @@ func _pick_upgrade_type() -> String:
 	return String(pool[randi() % pool.size()])
 
 
-## 击杀掉落（Unity Director.RollDrop）：精英必掉成长箱+3 宝石；陨石 80% 撒 2 宝石；
-## 其余按 dropChance 进两张权重表（未满级 / 已满级）。
+## 击杀掉落：**每台敌机最多掉 1 件**，避免同屏杂物过多。
+## 精英必掉 1 个成长箱；陨石 80% 掉 1 颗宝石；其余按 dropChance 进两张权重表。
 func _roll_drop(e: Enemy, at: Vector2) -> void:
 	if e.elite:
 		_spawn_crate_at(at, _pick_upgrade_type())
-		for i in range(3):
-			_spawn_crate_at(at + Vector2(randf_range(-20.0, 20.0), randf_range(-10.0, 10.0)), "gem")
 		return
 	if e.kind == "rock":
 		if randf() < 0.8:
-			for i in range(2):
-				_spawn_crate_at(at + Vector2(randf_range(-10.0, 10.0), randf_range(-8.0, 8.0)), "gem")
+			_spawn_crate_at(at, "gem")
 		return
 	if randf() > float(e.def.get("drop", 0.0)):
 		return
@@ -1434,8 +1431,6 @@ func _roll_drop(e: Enemy, at: Vector2) -> void:
 		var idx := CFG.weighted_pick([22, 20, 9, 9, 7, 4, 20, 9], randf())
 		kind = String(["shield", "drone", "prism", "swarm", "reflect", "life", "weapon", "gem"][idx])
 	_spawn_crate_at(at, kind)
-	if kind == "gem":
-		_spawn_crate_at(at + Vector2(12.0, 0.0), "gem")
 
 
 func _spawn_crate_at(pos: Vector2, kind: String) -> void:

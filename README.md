@@ -1,7 +1,16 @@
-# Space Fighter — Godot 4.7.2 / v1.11.0
+# Space Fighter — Godot 4.7.2 / v1.11.1
 
 Migration of the retired Unity port, using `reference/web/www` (the original
 540x960 Canvas game) as the gameplay and numeric source of truth.
+
+## v1.11.1 one drop per enemy
+
+- Every kill now yields **at most one pickup**: elite drops a single upgrade
+  crate (previously crate + 3 gems), asteroids drop one gem (previously two),
+  and normal enemies no longer spawn a bonus gem next to a gem drop.
+  Intermission salvage and scripted supply drops are unchanged.
+- Gate `VERIFY_OK checks=209`, `SELFTEST_OK n=12`.
+- Android versionName `1.11.1` / code `30`; Windows FileVersion `1.11.1.0`.
 
 ## v1.11.0 art palette aligned to Sky Wings + expanded settings
 

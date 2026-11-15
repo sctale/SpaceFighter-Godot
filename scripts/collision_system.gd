@@ -140,7 +140,7 @@ func kill_enemy(index: int, diff: Dictionary) -> void:
 		m.fx.float_text(at + Vector2(0, -e.size * 0.7), "+%d" % int(e.score_value),
 			Color(1.0, 0.94, 0.72), 14)
 	m._add_shake(5.0 if e.elite else 1.8, 0.26)
-	# 击杀掉落（Unity Director.RollDrop）：精英必掉、陨石撒宝石、其余按权重表
+	# 击杀掉落：每台敌机最多 1 件（精英必掉、陨石撒宝石、其余按权重表）
 	m._roll_drop(e, at)
 
 

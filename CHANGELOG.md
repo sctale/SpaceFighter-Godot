@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.11.1 — 2026-11-15
+
+**fix / 每台敌机最多掉落 1 件物品**
+
+- `_roll_drop` 精简：精英由「1 成长箱 + 3 宝石」改为只掉 1 个成长箱；
+  陨石由「80% 撒 2 宝石」改为掉 1 颗；普通敌机删去「gem 额外 +1」，
+  避免同屏掉落物堆叠、与弹幕与敌机混杂。
+- 幕间通关补给与剧本空投（`_deploy_sector_salvage` / `_spawn_supply_now`）
+  不受影响，仍按原数量给出。
+- 验证：`VERIFY_OK checks=209`、`SELFTEST_OK n=12`。
+- Android versionName `1.11.1` / code `30`；Windows FileVersion `1.11.1.0`。
+
 ## 1.11.0 — 2026-11-14
 
 **feat / 画风调色板对齐参考作 + 设置菜单扩展（震动/语言/灵敏度）**
